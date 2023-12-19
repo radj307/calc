@@ -1,0 +1,68 @@
+			
+#####################
+ Tokenization Basics			
+#####################
+	
+- Lexeme  
+  The most basic unit of a math expression. Lexemes usually correspond to one or two characters in total.  
+  Examples of lexemes include digits, letters, symbols (+-*/%), brackets (both open/close), etc.
+- Primitive  
+  
+- Token  
+  
+				 
+			     
+			     
+			     
+[LEXEME TKZ: STAGE 1]-----------------------------------------------------------------------------------------------------------
+		 bracket   	                      bracket             bracket         alpha                      alpha     bracket
+LEXEMES:   open   digit   divide    digit   close    multiply   close     digit |  digit    subtract  digit|digit   close
+         	v       v        v       v       v          v         v			 \  |  _/\_        v        \  | /\       v
+																			  \ | /    \                 \ |/  \
+
+			(       1        /        5       )         *         (             0b10100101     -          0xFaFo      )
+
+		     \                                          ^                                                            /
+			  \________________________________________/|\__________________________________________________________/
+			                                            |
+PRIMITIVE TOKENS:                                   expression
+			                                            |
+[LEXEME TKZ: STAGE 2]-----------------------------------V-----------------------------------------------------------------------	                                                                      
+		 bracket   	                      bracket             bracket         alpha                      alpha     bracket
+LEXEMES:   open   digit   divide    digit   close    multiply   close     digit |  digit    subtract  digit|digit   close
+         	v       v        v       v       v          v         v			 \  |  _/\_        v        \  | /\       v
+																			  \ | /    \                 \ |/  \
+																			  
+			(       1        /        5       )         *         (             0b10100101     -          0xFaFo      )
+
+			 \               ^               /          ^          \                           ^                     /
+              \_____________/|\_____________/           |           \_________________________/|\___________________/
+                             |                          |                                      |
+PRIMITIVE TOKENS:        expression        [ multiplication operator ]                     expression
+		                     |                          |                                      |
+[LEXEME TKZ: STAGE ...]----[...]----------------------[...]----------------------------------[...]------------------------------
+  (Stage # may differ)		 |                          |                                      |
+[PRIMITIVE TKZ: STAGE 1]-----V--------------------------V--------------------------------------V--------------------------------
+                             |                          |                                      |
+PRIMITIVE TOKENS:        expression        [ multiplication operator ]                     expression
+		                     |                          |                                      |
+							 v                          v                                      v
+							                            
+	 	    (       1        /        5       )         *         (             0b10100101     -          0xFaFo      )        
+			                 
+TOKENS:     ^       ^        ^        ^       ^         ^         ^                 ^          ^            ^         ^
+	  expression  decimal  division  deci.  bracket   mult.    expression    binary number  subtract   hexadecimal   bracket
+		 start     number  operator  number  close   operator   start                       operator      number      close
+              	              	              	              	              	              	              	                
+[PRIMITIVE TKZ: STAGE ...]------------------------------------------------------------------------------------------------------
+			  
+			  
+			  
+			  
+			  
+			  
+			  
+			  
+			  
+			  
+			  
