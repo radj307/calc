@@ -1,10 +1,11 @@
 ﻿#include "ExpressionTokenizer.hpp"
 #include "Number.hpp"
 
-#include <TermAPI.hpp>		//< for console helpers
-#include <color-sync.hpp>	//< for sync
-#include <opt3.hpp>			//< for ArgManager
-#include <envpath.hpp>		//< for PATH
+#include <TermAPI.hpp>				//< for console helpers
+#include <color-sync.hpp>			//< for sync
+#include <opt3.hpp>					//< for ArgManager
+#include <envpath.hpp>				//< for PATH
+#include <hasPendingDataSTDIN.h>	//< for checking piped input
 
 color::sync csync{};
 
@@ -42,7 +43,9 @@ int main(const int argc, char** argv)
 
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
 
-		if (args.empty() || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
+		const auto pipedInput{ hasPendingDataSTDIN() };
+
+		if ((args.empty() && !pipedInput) || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
 			std::cout << print_help(procName.generic_string());
 			return 0;
 		}
@@ -51,8 +54,16 @@ int main(const int argc, char** argv)
 			return 0;
 		}
 
-		const auto& expression{ str::join(args.getv_all<opt3::Parameter>()) };
+		// create a stringstream for the entire expression buffer
+		std::stringstream exprBuff;
 
+		// if there is piped input move it into the expression buffer
+		if (pipedInput) {
+			exprBuff << std::cin.rdbuf();
+		}
+
+		// move the parsed commandline input into the expression buffer
+		exprBuff << str::join(args.getv_all<opt3::Parameter>());
 
 		return 0;
 	} catch (const std::exception& ex) {
