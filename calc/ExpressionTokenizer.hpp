@@ -406,12 +406,13 @@ namespace calc::expr {
 			{
 				return predicate(peekNextChar());
 			}
-			/// @brief				Checks if the next char in the stream is equal to any of the specified chars.
-			template<std::same_as<char>... Ts>
-			[[nodiscard]] bool nextCharIsAny(Ts&&... chars)
+			/// @brief				Checks if the next char in the stream matches any one of the specified predicates, without changing the getter position.
+			/// @returns			true when any predicate returned true for the next char; otherwise, false.
+			template<std::same_as<std::function<bool(char)>>... Ts>
+			[[nodiscard]] bool nextCharIsAny(Ts&&... predicates)
 			{
 				const auto next{ peekNextChar() };
-				return var::variadic_or(next == chars...);
+				return var::variadic_or(predicates(next)...);
 			}
 
 			/// @brief				Eats the next char in the stream. Useful when it was already retrieved with peekNextChar().
@@ -479,34 +480,70 @@ namespace calc::expr {
 					const bool startsWithZero{ c == '0' };
 					c = peekNextChar();
 
+					// handle binary numbers
 					if (c == 'b') {
-						// binary
-						buf += c;
+						// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
+						buf += getNextChar();
+					GET_NEXT_BINARY_SEGMENT:
 						buf += getWhile(str::isbinarydigit);
+						if ((c = peekNextChar()) == '_') {
+							if (const auto nextNextChar{ peekCharOff(1) }; nextNextChar == '0' || nextNextChar == '1') {
+								// add underscore to the buffer and increment the getter position
+								buf += c;
+								skipNextChar();
+								goto GET_NEXT_BINARY_SEGMENT;
+							}
+						}
+
 						return{ LexemeType::BinaryNumber, pos, buf };
 					}
+					// handle hexadecimal numbers
 					else if (c == 'x') {
-						// hexadecimal
-						buf += c;
+						// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
+						buf += getNextChar();
 						buf += getWhile(str::ishexdigit);
+
+						return{ LexemeType::HexNumber, pos, buf };
 					}
-					else if (str::stdpred::isdigit(c)) {
+					// handle octal, integral, and real numbers
+					else if (c == '.' || c == ',' || str::stdpred::isdigit(c)) {
+						skipNextChar();
 						buf += c;
 
-						uint8_t maxDigit{};
+						bool hasDecimalPoint{ c == '.' };
+						bool has8OrHigher{ c == '8' || c == '9' };
 
-						//while (nextCharIs())
+						while (true) {
+							c = getNextChar();
 
-						//	if (startsWithZero) {
-						//		// real number or octal
+							if (eof()) {
+								// eof bit set, put this char back and return
+								ungetChar();
+								break;
+							}
 
-						//	}
-						//	else {
-						//		// real number or integer (doesn't start with a zero)
+							if (c == '.')
+								hasDecimalPoint = true;
+							else if (c == '8' || c == '9')
+								has8OrHigher = true;
+							else if ((c < '0' || c > '7') && c != ',') {
+								// not a valid numeric character
+								ungetChar();
+								break;
+							}
 
-						//	}
+							buf += c;
+						}
+
+						if (hasDecimalPoint)
+							return{ LexemeType::RealNumber, pos, buf }; //< floating-point
+						else if (startsWithZero && !has8OrHigher)
+							return{ LexemeType::OctalNumber, pos, buf }; //< octal
+						else
+							return{ LexemeType::IntNumber, pos, buf }; //< integer
 					}
-					else return{ LexemeType::OctalNumber, pos, c };
+					// zero literal is an octal number
+					else return{ LexemeType::OctalNumber, pos, buf };
 				}
 
 				switch (c) {
