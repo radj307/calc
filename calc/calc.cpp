@@ -72,7 +72,7 @@ int main(const int argc, char** argv)
 		const auto expr{ "(5 / 0.56 )(0b1110 * 0xFF0)" };
 		const auto lexemes = token::lexer{ expr }.get_lexemes(false);
 
-		std::cout << "Input Expression:" << '\"' << expr << '\"' << '\n' << '\n';
+		std::cout << "Input Expression: " << '\"' << expr << '\"' << '\n' << '\n';
 
 		const size_t COLSZ_0{ 4 };
 		const size_t COLSZ_1{ 12 };

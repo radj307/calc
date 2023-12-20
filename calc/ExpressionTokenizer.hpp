@@ -69,14 +69,8 @@ namespace calc::expr {
 
 		// OPERAND TYPES:
 
-		// A number literal in binary (base-2)
-		BinaryNumber,
-		// A number literal in octal (base-8)
-		OctalNumber,
-		// A number literal in decimal (base-10).
-		DecimalNumber,
-		// A number literal in hexadecimal (base-16).
-		HexNumber,
+		// A number literal.
+		Number,
 		// A variable name.
 		VariableName,
 		// A sub-expression, consisting of an opening bracket, operands, and an operator. Flow control.
@@ -477,73 +471,61 @@ namespace calc::expr {
 					std::string buf{};
 					buf += c;
 
-					const bool startsWithZero{ c == '0' };
 					c = peekNextChar();
 
-					// handle binary numbers
-					if (c == 'b') {
-						// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
-						buf += getNextChar();
-					GET_NEXT_BINARY_SEGMENT:
-						buf += getWhile(str::isbinarydigit);
-						if ((c = peekNextChar()) == '_') {
-							if (const auto nextNextChar{ peekCharOff(1) }; nextNextChar == '0' || nextNextChar == '1') {
-								// add underscore to the buffer and increment the getter position
+					if (!eof()) {
+						// handle binary numbers
+						if (c == 'b') {
+							// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
+							buf += getNextChar();
+						GET_NEXT_BINARY_SEGMENT:
+							buf += getWhile(str::isbinarydigit);
+							if ((c = peekNextChar()) == '_') {
+								if (const auto nextNextChar{ peekCharOff(1) }; nextNextChar == '0' || nextNextChar == '1') {
+									// add underscore to the buffer and increment the getter position
+									buf += c;
+									skipNextChar();
+									goto GET_NEXT_BINARY_SEGMENT;
+								}
+							}
+
+							return{ LexemeType::BinaryNumber, pos, buf };
+						}
+						// handle hexadecimal numbers
+						else if (c == 'x') {
+							// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
+							buf += getNextChar();
+							buf += getWhile(str::ishexdigit);
+
+							return{ LexemeType::HexNumber, pos, buf };
+						}
+						// handle octal, integral, and real numbers
+						if (bool hasDecimalPoint{ c == '.' }, has8DigitOrHigher{ c == '8' || c == '9' };
+							hasDecimalPoint || has8DigitOrHigher || (c >= '0' && c <= '7')) {
+							// increment the getter position past the current char (c is already set to the result of getNextChar() since we peeked)
+							buf += getNextChar();
+
+							while (nextCharIs([](auto&& ch) -> bool { return $fwd(ch) == '.' || $fwd(ch) == ',' || str::stdpred::isdigit($fwd(ch)); })) {
+								c = getNextChar();
+
+								if (c == '.')
+									hasDecimalPoint = true;
+								else if (c == '8' || c == '9')
+									has8DigitOrHigher = true;
+
 								buf += c;
-								skipNextChar();
-								goto GET_NEXT_BINARY_SEGMENT;
 							}
+
+							if (hasDecimalPoint)
+								return{ LexemeType::RealNumber, pos, buf }; //< floating-point
+							else if (buf.at(0) == '0' && !has8DigitOrHigher)
+								return{ LexemeType::OctalNumber, pos, buf }; //< octal
+							else
+								return{ LexemeType::IntNumber, pos, buf }; //< integer								
 						}
-
-						return{ LexemeType::BinaryNumber, pos, buf };
+						// else fall through
 					}
-					// handle hexadecimal numbers
-					else if (c == 'x') {
-						// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
-						buf += getNextChar();
-						buf += getWhile(str::ishexdigit);
-
-						return{ LexemeType::HexNumber, pos, buf };
-					}
-					// handle octal, integral, and real numbers
-					else if (c == '.' || c == ',' || str::stdpred::isdigit(c)) {
-						skipNextChar();
-						buf += c;
-
-						bool hasDecimalPoint{ c == '.' };
-						bool has8OrHigher{ c == '8' || c == '9' };
-
-						while (true) {
-							c = getNextChar();
-
-							if (eof()) {
-								// eof bit set, put this char back and return
-								ungetChar();
-								break;
-							}
-
-							if (c == '.')
-								hasDecimalPoint = true;
-							else if (c == '8' || c == '9')
-								has8OrHigher = true;
-							else if ((c < '0' || c > '7') && c != ',') {
-								// not a valid numeric character
-								ungetChar();
-								break;
-							}
-
-							buf += c;
-						}
-
-						if (hasDecimalPoint)
-							return{ LexemeType::RealNumber, pos, buf }; //< floating-point
-						else if (startsWithZero && !has8OrHigher)
-							return{ LexemeType::OctalNumber, pos, buf }; //< octal
-						else
-							return{ LexemeType::IntNumber, pos, buf }; //< integer
-					}
-					// zero literal is an octal number
-					else return{ LexemeType::OctalNumber, pos, buf };
+					return{ (c == '0' ? LexemeType::OctalNumber : LexemeType::IntNumber), pos, buf };
 				}
 
 				switch (c) {
