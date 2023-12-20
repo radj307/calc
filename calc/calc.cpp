@@ -28,6 +28,9 @@ struct print_help {
 			<< "OPTIONS:\n"
 			<< "  -h, --help               Shows this help display, then exits." << '\n'
 			<< "  -v, --version            Prints the current version number, then exits." << '\n'
+			<< "  -m, --mode <MODE>        Specifies the mode of operation to use." << '\n'
+			<< "                           - Standard  (Default)" << '\n'
+			<< "                           - Statistics" << '\n'
 			;
 	}
 };
@@ -37,12 +40,11 @@ int main(const int argc, char** argv)
 	try {
 		opt3::ArgManager args{ argc, argv,
 			// argument defs:
-			'1'
 		};
 
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
 
-		if (args.empty() || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
+		if (/*args.empty() ||*/ args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
 			std::cout << print_help(procName.generic_string());
 			return 0;
 		}
@@ -53,6 +55,22 @@ int main(const int argc, char** argv)
 
 		const auto& expression{ str::join(args.getv_all<opt3::Parameter>()) };
 
+		using namespace calc::expr;
+
+		const auto expr{ "(5 / 0.56 )(0b1110 * 0xFF0)" };
+		const auto lexemes = token::lexer{ expr }.get_lexemes(false);
+
+		std::cout << "INPUT: " << expr << '\n';
+
+		for (const auto& it : lexemes) {
+			std::stringstream tempbuf;
+			tempbuf << '[' << it.pos;
+			if (const auto& endPos{ it.getEndPos() - 1 }; it.pos != endPos)
+				tempbuf << "-" << endPos;
+			tempbuf << "] (" << it.getEndPos() - it.pos << ')';
+			const auto s{ tempbuf.str() };
+			std::cout << s << indent(20, s.size()) << it.value << '\n';
+		}
 
 		return 0;
 	} catch (const std::exception& ex) {

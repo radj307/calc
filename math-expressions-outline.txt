@@ -2,12 +2,16 @@
 #####################
  Tokenization Basics			
 #####################
-	
+
+- Input Text  
+|  
+v  
 - Lexeme  
-  The most basic unit of a math expression. Lexemes usually correspond to one or two characters in total.  
-  Examples of lexemes include digits, letters, symbols (+-*/%), brackets (both open/close), etc.
-- Primitive  
-  
+|  The most basic unit of a math expression. Lexemes usually correspond to one or two characters in total.  
+v  Examples of lexemes include digits, letters, symbols (+-*/%), brackets (both open/close), etc.  
+- Primitive Token  
+|  Simple tokens that 
+v
 - Token  
   
 				 
