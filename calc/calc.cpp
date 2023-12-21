@@ -37,11 +37,9 @@ static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 	{ calc::expr::LexemeType::Unknown, "Unknown" },
 	{ calc::expr::LexemeType::Escape, "Escape" },
 	{ calc::expr::LexemeType::Equal, "Equal" },
-	{ calc::expr::LexemeType::Add, "Add" },
-	{ calc::expr::LexemeType::Subtract, "Subtract" },
-	{ calc::expr::LexemeType::Multiply, "Multiply" },
-	{ calc::expr::LexemeType::Divide, "Divide" },
-	{ calc::expr::LexemeType::Percent, "Percent" },
+	{ calc::expr::LexemeType::Colon, "Colon" },
+	{ calc::expr::LexemeType::Semicolon, "Semicolon" },
+	{ calc::expr::LexemeType::Operator, "Operator" },
 	{ calc::expr::LexemeType::Alpha, "Alpha" },
 	{ calc::expr::LexemeType::IntNumber, "IntNumber" },
 	{ calc::expr::LexemeType::RealNumber, "RealNumber" },
@@ -50,10 +48,15 @@ static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 	{ calc::expr::LexemeType::HexNumber, "HexNumber" },
 	{ calc::expr::LexemeType::Period, "Period" },
 	{ calc::expr::LexemeType::Comma, "Comma" },
+	{ calc::expr::LexemeType::Macro, "Macro" },
 	{ calc::expr::LexemeType::AngleBracketOpen, "AngleBracketOpen" },
 	{ calc::expr::LexemeType::AngleBracketClose, "AngleBracketClose" },
-	{ calc::expr::LexemeType::BracketOpen, "BracketOpen" },
-	{ calc::expr::LexemeType::BracketClose, "BracketClose" },
+	{ calc::expr::LexemeType::SquareBracketOpen, "SquareBracketOpen" },
+	{ calc::expr::LexemeType::SquareBracketClose, "SquareBracketClose" },
+	{ calc::expr::LexemeType::ParenthesisOpen, "ParenthesisOpen" },
+	{ calc::expr::LexemeType::ParenthesisClose, "ParenthesisClose" },
+	{ calc::expr::LexemeType::BraceOpen, "BraceOpen" },
+	{ calc::expr::LexemeType::BraceClose, "BraceClose" },
 	{ calc::expr::LexemeType::_EOF, "_EOF" },
 };
 
@@ -67,10 +70,14 @@ int main(const int argc, char** argv)
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
 
 
+		// v REMOVE WHEN DONE v
+
 		using namespace calc::expr;
 
-		const auto expr{ "(5 / 0.56 )(0b1110 * 0xFF0)" };
-		const auto lexemes = token::lexer{ expr }.get_lexemes(false);
+		const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
+		//                01234567891111111111222222222233333333
+		//                          0123456789012345678901234567
+		const auto lexemes = tkn::lexer{ expr }.get_lexemes(false);
 
 		std::cout << "Input Expression: " << '\"' << expr << '\"' << '\n' << '\n';
 
@@ -79,6 +86,7 @@ int main(const int argc, char** argv)
 		const size_t COLSZ_2{ 8 };
 		const size_t COLSZ_3{ 20 };
 
+		// print output table
 		std::cout
 			<< "Idx" << indent(COLSZ_0, 3) << "| "
 			<< "Pos" << indent(COLSZ_1, 3) << "| "
@@ -89,9 +97,7 @@ int main(const int argc, char** argv)
 			<< indent(COLSZ_1 + 1, 0, '-') << '|'
 			<< indent(COLSZ_2 + 1, 0, '-') << '|'
 			<< indent(COLSZ_3 + 1, 0, '-') << '|'
-			<< indent(20, 0, '-') << '\n'
-			;
-
+			<< indent(20, 0, '-') << '\n';
 		int i = 0;
 		for (const auto& it : lexemes) {
 			std::string str{ std::to_string(i++) };
@@ -116,7 +122,17 @@ int main(const int argc, char** argv)
 			// print token value
 			std::cout << it.value << '\n';
 		}
+
+		std::cout << "\n\n";
+
+		const auto combined{ calc::expr::tkn::combine_tokens(calc::expr::PrimitiveTokenType::Expression, std::move(lexemes)) };
+
+		std::cout << '\"' << expr << '\"' << '\n';
+		std::cout << '\"' << combined << '\"' << '\n';
+
 		return 0;
+
+		// ^ REMOVE WHEN DONE ^
 
 
 		const auto pipedInput{ hasPendingDataSTDIN() };

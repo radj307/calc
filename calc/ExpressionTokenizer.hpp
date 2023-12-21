@@ -9,6 +9,7 @@
 #include <vector>
 #include <map>
 #include <optional>
+#include <variant>
 
 namespace calc::expr {
 	/**
@@ -21,42 +22,48 @@ namespace calc::expr {
 		Escape,
 		// ('=') An equals sign
 		Equal,
-		// ('+') Addition symbol
-		Add,
-		// ('-') Subtraction symbol
-		Subtract,
-		// ('*') Multiplication symbol
-		Multiply,
-		// ('/') Division symbol
-		Divide,
-		// ('%') Percent symbol
-		Percent,
+		// (':') A colon
+		Colon,
+		// (';') A semicolon
+		Semicolon,
+		// ([+-*/%^!~]) An arithmetic operator of some kind.
+		Operator,
 		// ([A-Za-z]) An upper or lower-case letter.
 		Alpha,
-		// ([1-9]+) An integral number.
+		// ([1-9]+) An integral number that starts with a non-zero digit. The underlying value of lexemes are not validated by the lexer.
 		IntNumber,
-		// ([1-9][0-9]+.[0-9]+) A floating-point number.
+		// ([1-9][0-9]+.[0-9]+) A floating-point number that contains at least one decimal point. The underlying value of lexemes are not validated by the lexer.
 		RealNumber,
-		// ("0b[01]+") A binary number. Binary numbers always start with "0b".
+		// ("0b[01]+") A binary number. Binary numbers always start with "0b". The underlying value of lexemes are not validated by the lexer.
 		BinaryNumber,
-		// (0[0-7]+) An octal number. Octal numbers always start with "0".
+		// (0[0-7]+) An octal number. Octal numbers always start with "0". The underlying value of lexemes are not validated by the lexer.
 		OctalNumber,
-		// (0x[0-9A-Fa-f]+) A hexadecimal number. Hex numbers always start with "0x".
+		// (0x[0-9A-Fa-f]+) A hexadecimal number. Hex numbers always start with "0x". The underlying value of lexemes are not validated by the lexer.
 		HexNumber,
 		// ('.') A period character
 		Period,
 		// (',') A comma character
 		Comma,
+		// ([$@]) A macro paste symbol; corresponds to either a dollar sign '$', or an at symbol '@'.
+		Macro,
 		// ('<') An opening angle bracket / less than symbol
 		AngleBracketOpen,
 		// ('>') A closing angle bracket / greater than symbol
 		AngleBracketClose,
+		// ('[') An opening square bracket.
+		SquareBracketOpen,
+		// (']') A closing square bracket.
+		SquareBracketClose,
 		// ('(') An opening parenthesis
-		BracketOpen,
+		ParenthesisOpen,
 		// (')') A closing parenthesis
-		BracketClose,
+		ParenthesisClose,
+		// ('{') An opening brace.
+		BraceOpen,
+		// ('}') A closing brace.
+		BraceClose,
 		// (-1) End-of-file character. Indicates the end of an expression.
-		_EOF,
+		_EOF = static_cast<std::uint8_t>(EOF),
 	};
 
 	/**
@@ -114,6 +121,7 @@ namespace calc::expr {
 	enum class TokenType : std::uint8_t {
 		Unknown,
 
+		NumberLiteral,
 
 		// find median
 
@@ -122,7 +130,7 @@ namespace calc::expr {
 
 	// tokenizers:
 
-	namespace token {
+	namespace tkn {
 		/**
 		 * @brief				A basic token object with the specified token type.
 		 * @tparam TTokenType -	The type of token contained by this instance.
@@ -177,6 +185,7 @@ namespace calc::expr {
 			}
 		};
 
+	#pragma region combine_tokens
 		/**
 		 * @brief					Combines the specified tokens to create a single new token instance with the specified type.
 		 * @tparam FILL_CHAR	  -	The character to use as a separator when combining token string values.
@@ -187,22 +196,21 @@ namespace calc::expr {
 		 * @param ...tokens		  -	At least one basic_token to combine into a new token.
 		 * @returns					A new token of the specified type.
 		 */
-		template<char FILL_CHAR, typename TResultType, std::derived_from<basic_token<TResultType>> TResultToken = basic_token<TResultType>>
-		constexpr TResultToken combine_tokens(TResultType type, auto&&... tokens)
+		template<char FILL_CHAR, typename TResultType, std::derived_from<basic_token<TResultType>> TResultToken = basic_token<TResultType>, var::streamable... Ts>
+		constexpr TResultToken combine_tokens(TResultType const& type, Ts&&... tokens)
 		{
-			size_t startPos{ static_cast<size_t>(-1) };
+			size_t startPos{ static_cast<size_t>(EOF) };
+			size_t endPos{ 0ull };
 			std::stringstream buf;
-			size_t endPos{ startPos };
 
 			([&]() {
-				using TToken = std::decay_t<decltype(tokens)>;
-			static_assert(var::derived_from_templated<TToken, basic_token>, "create_token does not accept inputs that are not tokens!");
+				static_assert(var::derived_from_templated<decltype(tokens), basic_token>, "create_token does not accept inputs that are not tokens!");
 
-			auto pos{ std::forward<TToken>(tokens).pos };
+			std::streamoff pos{ $fwd(tokens).pos };
 
 			// use the smallest pos value as the beginning of the resulting token
 			if (pos < startPos)
-				startPos = std::forward<TToken>(tokens).pos;
+				startPos = $fwd(tokens).pos;
 
 			// pad out the gap between tokens with spaces
 			while (pos > endPos) {
@@ -210,22 +218,88 @@ namespace calc::expr {
 				++endPos;
 			}
 
-			buf << std::forward<TToken>(tokens);
+			buf << $fwd(tokens);
 
-			endPos = std::forward<TToken>(tokens).getEndPos();
+			endPos = $fwd(tokens).getEndPos();
 			}(), ...);
 
 			return{ type, startPos, buf.str() };
 		}
-		template<typename TResultType, std::derived_from<basic_token<TResultType>> TResultToken = basic_token<TResultType>>
-		constexpr TResultToken combine_tokens(TResultType type, auto&&... tokens) { return combine_tokens<' '>(type, $fwd(tokens)...); }
+		/**
+		 * @brief					Combines the specified tokens to create a single new token instance with the specified type.
+		 * @tparam TResultType	  -	The token type of the resulting token.
+		 * @tparam TResultToken	  -	The type of the resulting token.
+		 * @param type			  -	The token type of the resulting token instance.
+		 * @param ...tokens		  -	At least one basic_token to combine into a new token.
+		 * @returns					A new token of the specified type.
+		 */
+		template<typename TResultType, std::derived_from<basic_token<TResultType>> TResultToken = basic_token<TResultType>, var::streamable... Ts>
+		constexpr TResultToken combine_tokens(TResultType const& type, Ts&&... tokens) { return combine_tokens<' '>(type, $fwd(tokens)...); }
+
+		template<var::derived_from_templated<basic_token> TSource, typename TResultType, std::derived_from<basic_token<TResultType>> TResult = basic_token<TResultType>>
+		constexpr TResult combine_tokens(TResultType const& type, std::vector<TSource>&& vec)
+		{
+			size_t startPos{ static_cast<size_t>(EOF) };
+			size_t endPos{ 0ull };
+			std::stringstream buf;
+
+			for (const auto& it : $fwd(vec)) {
+
+				auto pos{ it.pos };
+
+				// use the smallest pos value as the beginning of the resulting token
+				if (pos < startPos)
+					startPos = it.pos;
+
+				// pad out the gap between tokens with spaces
+				while (pos > endPos) {
+					buf << ' ';
+					++endPos;
+				}
+
+				buf << it;
+
+				endPos = it.getEndPos();
+			}
+
+			return{ type, startPos, buf.str() };
+		}
+		template<var::derived_from_templated<basic_token> TSource, typename TResultType, std::derived_from<basic_token<TResultType>> TResult = basic_token<TResultType>>
+		constexpr TResult combine_tokens(TResultType const& type, const std::vector<TSource> vec)
+		{
+			size_t startPos{ static_cast<size_t>(EOF) };
+			size_t endPos{ 0ull };
+			std::stringstream buf;
+
+			for (const auto& it : $fwd(vec)) {
+
+				auto pos{ it.pos };
+
+				// use the smallest pos value as the beginning of the resulting token
+				if (pos < startPos)
+					startPos = it.pos;
+
+				// pad out the gap between tokens with spaces
+				while (pos > endPos) {
+					buf << ' ';
+					++endPos;
+				}
+
+				buf << it;
+
+				endPos = it.getEndPos();
+			}
+
+			return{ type, startPos, buf.str() };
+		}
+	#pragma endregion combine_tokens
 
 		/// @brief	A lexeme token, the most basic kind of token subtype.
 		using lexeme = basic_token<LexemeType>;
 		/// @brief	A primitive token, one step up from a lexeme but not a full token.
 		using primitive = basic_token<PrimitiveTokenType>;
-		/// @brief	A token.
-		using token = basic_token<TokenType>;
+		/// @brief	A complex token, the most advanced kind of token subtype.
+		using complex = basic_token<TokenType>;
 
 		/// @brief	Lexical tokenizer that converts text input into lexemes.
 		class lexer {
@@ -239,30 +313,8 @@ namespace calc::expr {
 		protected:
 			// The underlying buffer stream.
 			std::stringstream sbuf;
-			// The previous position of the getter.
-			pos_t lastPos{ 0 };
 
-			/// @brief			Sets lastPos to the specified position.
-			/// @param pos	  - The target position relative to the beginning of the stream.
-			/// @returns		The previous lastPos value.
-			inline auto setLastPos(const pos_t pos)
-			{
-				const auto previousValue{ lastPos };
-				lastPos = pos;
-				return previousValue;
-			}
-			/// @brief			Sets lastPos to the current position of the getter.
-			/// @returns		The previous lastPos value.
-			inline auto setLastPosHere()
-			{
-				return setLastPos(getPos());
-			}
-			/// @brief	Sets the current getter position to the lastPos.
-			inline auto restoreLastPos()
-			{
-				setPos(lastPos);
-			}
-
+		#pragma region stream state
 			/**
 			 * @brief		Checks if the buffer is in a good state and more data is available.
 			 * @returns		true when no error bits are set; otherwise, false.
@@ -285,7 +337,9 @@ namespace calc::expr {
 			 * @returns		true when the eofbit is set; otherwise, false.
 			 */
 			[[nodiscard]] inline bool eof() const { return sbuf.eof(); }
+		#pragma endregion stream state
 
+		#pragma region stream format flags
 			/// @brief		Sets the specified flag(s) in the buffer stream.
 			/// @returns	The previous flags.
 			inline auto setf(std::ios_base::fmtflags const& formatFlags)
@@ -297,7 +351,9 @@ namespace calc::expr {
 			{
 				sbuf.unsetf(formatFlags);
 			}
+		#pragma endregion stream format flags
 
+		#pragma region stream gpos
 			/// @brief			Sets the getter position to the specified position.
 			/// @param pos    - The target position relative to the beginning of the stream.
 			inline void setPos(const pos_t pos)
@@ -327,32 +383,38 @@ namespace calc::expr {
 				return static_cast<off_t>(getPos());
 			}
 
-			/// @brief				Gets the next char in the stream without changing the getter position.
-			/// @param setLastPos - When true, this is the same as calling setLastPosHere(). Defaults to false.
-			[[nodiscard]] char peekNextChar(const bool setLastPos = false)
+			inline pos_t careful_getPos()
 			{
-				if (setLastPos) setLastPosHere();
+				const auto currentPos{ sbuf.tellg() };
+				sbuf.seekg(std::ios::beg);
+				const auto beginPos{ sbuf.tellg() };
 
+				return beginPos + currentPos;
+			}
+		#pragma endregion stream gpos
+
+		#pragma region peek/get NextChar
+			/// @brief				Gets the next char in the stream without changing the getter position.
+			[[nodiscard]] char peekNextChar()
+			{
 				return static_cast<char>(sbuf.peek());
 			}
-			/// @brief				Gets the next char in the stream.
-			/// @param setLastPos - When true, sets lastPos prior to moving to the target position. Defaults to false.
-			[[nodiscard]] char getNextChar(const bool setLastPos = false)
+			/// @brief		Gets the next char in the stream.
+			/// @returns	The next char in the stream if available; otherwise, EOF.
+			[[nodiscard]] char getNextChar()
 			{
-				if (setLastPos) setLastPosHere();
-
-				char c;
+				if (!good()) return static_cast<char>(EOF);
+				char c{};
 				sbuf.get(c);
 				return c;
 			}
+		#pragma endregion peek/get NextChar
 
-			/// @brief				Returns the char at the specified position in the stream without changing the getter position.
-			/// @param pos		  - The target position relative to the beginning of the stream.
-			/// @param setLastPos - When true, this is the same as calling setLastPosHere(). Defaults to false.
-			[[nodiscard]] char peekCharAt(const pos_t pos, const  bool setLastPos = false)
+		#pragma region peek/get CharAt
+			/// @brief			Returns the char at the specified position in the stream without changing the getter position.
+			/// @param pos	  -	The target position relative to the beginning of the stream.
+			[[nodiscard]] char peekCharAt(const pos_t pos)
 			{
-				if (setLastPos) setLastPosHere();
-
 				const pos_t currentPos{ getPos() };
 
 				// move to target pos
@@ -366,78 +428,81 @@ namespace calc::expr {
 
 				return c;
 			}
-			/// @brief				Returns the char at the specified position in the stream.
-			/// @param pos		  -	The target position relative to the beginning of the stream.
-			/// @param setLastPos - When true, sets lastPos prior to moving to the target position. Defaults to false.
-			[[nodiscard]] char getCharAt(const pos_t pos, const bool setLastPos = false)
+			/// @brief			Returns the char at the specified position in the stream.
+			/// @param pos	  -	The target position relative to the beginning of the stream.
+			[[nodiscard]] char getCharAt(const pos_t pos)
 			{
-				if (setLastPos) setLastPosHere();
-
 				// move to target pos
 				setPos(pos);
 
 				return getNextChar();
 			}
+		#pragma endregion peek/get CharAt
 
-			/// @brief				Returns the char at the specified offset, relative to the current getter position.
-			/// @param pos		  - The offset from the current getter position. Negative goes backwards, positive goes forwards.
-			/// @param setLastPos - When true, this is the same as calling setLastPosHere(). Defaults to false.
-			[[nodiscard]] char peekCharOff(const off_t offset, bool setLastPos = false)
+		#pragma region peek/get CharOff
+			/// @brief			Returns the char at the specified offset, relative to the current getter position.
+			/// @param pos	  - The offset from the current getter position. Negative goes backwards, positive goes forwards.
+			[[nodiscard]] char peekCharOff(const off_t offset)
 			{
-				return peekCharAt(getPos() + offset, setLastPos);
+				return peekCharAt(getPos() + offset);
 			}
-			/// @brief				Returns the char at the specified offset, relative to the current getter position.
-			/// @param pos		  - The offset from the current getter position. Negative goes backwards, positive goes forwards.
-			/// @param setLastPos - When true, sets lastPos prior to moving to the target position. Defaults to false.
-			[[nodiscard]] char getCharOff(const off_t offset, bool setLastPos = false)
+			/// @brief			Returns the char at the specified offset, relative to the current getter position.
+			/// @param pos	  - The offset from the current getter position. Negative goes backwards, positive goes forwards.
+			[[nodiscard]] char getCharOff(const off_t offset)
 			{
-				return getCharAt(getPos() + offset, setLastPos);
+				return getCharAt(getPos() + offset);
 			}
+		#pragma endregion peek/get CharOff
 
 			/// @brief				Returns the specified predicate's result for the next char in the stream without changing the getter position.
+			/// @param predicate  - A predicate function whose return value determines the result of this method.
 			/// @returns			true when the predicate returned true for the next char; otherwise, false.
 			[[nodiscard]] bool nextCharIs(const std::function<bool(char)>& predicate)
 			{
 				return predicate(peekNextChar());
 			}
-			/// @brief				Checks if the next char in the stream matches any one of the specified predicates, without changing the getter position.
-			/// @returns			true when any predicate returned true for the next char; otherwise, false.
-			template<std::same_as<std::function<bool(char)>>... Ts>
-			[[nodiscard]] bool nextCharIsAny(Ts&&... predicates)
-			{
-				const auto next{ peekNextChar() };
-				return var::variadic_or(predicates(next)...);
-			}
 
-			/// @brief				Eats the next char in the stream. Useful when it was already retrieved with peekNextChar().
-			/// @param setLastPos - When true, sets lastPos prior to moving to the target position. Defaults to false.
-			void skipNextChar(const bool setLastPos = false)
-			{
-				(void)getNextChar(setLastPos);
-			}
+			/// @brief	Increments the getter position by one, skipping the next char.
+			///          This is useful when you already have the next char from peekNextChar() and want to move the getter to the next char.
+			void skipNextChar() { (void)getNextChar(); }
 
-			/// @brief				Undoes the last call to getNextChar().
+			/// @brief	Decrements the getter position by one, making the last char to be extracted from the stream available again.
 			void ungetChar() { sbuf.unget(); }
 
-			std::string getWhile(const std::function<bool(char)>& predicate, const bool includeEof = false, const bool setLastPos = false)
+			/// @brief				Continues getting characters from the stream while the specified predicate returns true.
+			/// @param predicate  - A predicate function that accepts a char and returns true to continue or false to break from the loop.
+			std::string getWhile(const std::function<bool(char)>& predicate, const std::string& skipOverChars)
 			{
-				if (setLastPos) setLastPosHere();
+				std::string buf;
 
-				std::string buf{};
+				// make sure the next char is actually wanted before spinning up the loop
+				if (!predicate(peekNextChar())) return buf;
 
-				for (char c{}; true;) {
-					c = getNextChar();
-
-					if (const bool atEof{ eof() };
-						(!includeEof && atEof) || !predicate(c)) {
-						// predicate failed, put this char back in the stream and return
-						ungetChar();
-						break;
-					}
-					// if we've reached eof and the predicate explicitly allows it, include it in return
-					else if (atEof) break;
-
+				// push chars allowed by the predicate to the buffer
+				for (char c{}; sbuf >> c; ) {
 					buf += c;
+
+					// peek at the next char and break if the predicate returns false
+					if (!predicate(peekNextChar())) break;
+				}
+
+				return buf;
+			}
+			/// @brief				Continues getting characters from the stream while the specified predicate returns true.
+			/// @param predicate  - A predicate function that accepts a char and returns true to continue or false to break from the loop.
+			std::string getWhile(const std::function<bool(char)>& predicate)
+			{
+				std::string buf;
+
+				// make sure the next char is actually wanted before spinning up the loop
+				if (!predicate(peekNextChar())) return buf;
+
+				// push chars allowed by the predicate to the buffer
+				for (char c{}; sbuf >> c; ) {
+					buf += c;
+
+					// peek at the next char and break if the predicate returns false
+					if (!predicate(peekNextChar())) break;
 				}
 
 				return buf;
@@ -453,63 +518,83 @@ namespace calc::expr {
 			lexeme getNextLexeme()
 			{
 			GET_NEXT_LEXEME:
-				const auto pos{ getOff() };
-				char c{ getNextChar(true) };
 
+				const auto pos{ getPos() };
+				char c{ getNextChar() };
+
+				// end-of-file (end-of-stream)
 				if (eof() || c == EOF)
 					return{ LexemeType::_EOF, pos, c };
-				else if (str::stdpred::isalpha(c)) {
-					// alpha; continue getting until the first non-alpha char
-					std::string buf{};
-					buf += c;
-					buf += getWhile(str::stdpred::isalpha);
-					return{ LexemeType::Alpha, pos, buf };
-				}
-				// parse number types
+				// alpha
+				else if (str::stdpred::isalpha(c))
+					return{ LexemeType::Alpha, pos, c }; //< don't coalesce alpha; we'll do that during expression resolution
+				// numbers
 				else if (str::stdpred::isdigit(c)) {
+				PARSE_NUMBER:
 					// digit; parse as a number
 					std::string buf{};
 					buf += c;
 
+					const bool startsWithZero{ c == '0' };
+
+					// peek at the next char
 					c = peekNextChar();
 
-					if (!eof()) {
-						// handle binary numbers
-						if (c == 'b') {
-							// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
-							buf += getNextChar();
-						GET_NEXT_BINARY_SEGMENT:
-							buf += getWhile(str::isbinarydigit);
-							if ((c = peekNextChar()) == '_') {
-								if (const auto nextNextChar{ peekCharOff(1) }; nextNextChar == '0' || nextNextChar == '1') {
-									// add underscore to the buffer and increment the getter position
-									buf += c;
-									skipNextChar();
-									goto GET_NEXT_BINARY_SEGMENT;
+					if (good()) {
+						// Only numbers that start with zero can be binary or hex; see "0b"/"0x"; 
+						if (startsWithZero) {
+							// handle binary numbers
+							if (c == 'b') {
+								// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
+								buf += getNextChar();
+							GET_NEXT_BINARY_SEGMENT:
+								buf += getWhile(str::isbinarydigit);
+								if ((c = peekNextChar()) == '_') {
+									if (const auto nextNextChar{ peekCharOff(1) }; nextNextChar == '0' || nextNextChar == '1') {
+										// add underscore to the buffer and increment the getter position
+										buf += c;
+										skipNextChar();
+										goto GET_NEXT_BINARY_SEGMENT;
+									}
 								}
+
+								return{ LexemeType::BinaryNumber, pos, buf };
 							}
+							// handle hexadecimal numbers
+							else if (c == 'x') {
+								// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
+								buf += getNextChar();
+								buf += getWhile(str::ishexdigit);
 
-							return{ LexemeType::BinaryNumber, pos, buf };
-						}
-						// handle hexadecimal numbers
-						else if (c == 'x') {
-							// increment the getter position past the 'b' (c is already set to the result of getNextChar() since we peeked)
-							buf += getNextChar();
-							buf += getWhile(str::ishexdigit);
-
-							return{ LexemeType::HexNumber, pos, buf };
+								return{ LexemeType::HexNumber, pos, buf };
+							}
+							//v fallthrough
 						}
 						// handle octal, integral, and real numbers
-						if (bool hasDecimalPoint{ c == '.' }, has8DigitOrHigher{ c == '8' || c == '9' };
+						if (bool hasDecimalPoint{ c == '.' || buf.at(0) == '.' }, has8DigitOrHigher{ c == '8' || c == '9' };
 							hasDecimalPoint || has8DigitOrHigher || (c >= '0' && c <= '7')) {
 							// increment the getter position past the current char (c is already set to the result of getNextChar() since we peeked)
 							buf += getNextChar();
 
-							while (nextCharIs([](auto&& ch) -> bool { return $fwd(ch) == '.' || $fwd(ch) == ',' || str::stdpred::isdigit($fwd(ch)); })) {
+							// keep getting characters until we reach the end of the number
+							while (nextCharIs([](auto&& ch) -> bool { return $fwd(ch) == '.' || $fwd(ch) == ',' || $fwd(ch) == '_' || str::stdpred::isdigit($fwd(ch)); })) {
 								c = getNextChar();
 
-								if (c == '.')
-									hasDecimalPoint = true;
+								if (c == '.') {
+									if (!hasDecimalPoint)
+										hasDecimalPoint = true;
+									else {
+										// we already found a decimal point ; this one is FAKE
+										ungetChar();
+										break;
+									}
+								}
+								else if (hasDecimalPoint && c == ',') {
+									// we already found a decimal point, so why is there a comma?
+									//  Consider it a separator; put it back and stop reading more chars
+									ungetChar();
+									break;
+								}
 								else if (c == '8' || c == '9')
 									has8DigitOrHigher = true;
 
@@ -518,14 +603,15 @@ namespace calc::expr {
 
 							if (hasDecimalPoint)
 								return{ LexemeType::RealNumber, pos, buf }; //< floating-point
-							else if (buf.at(0) == '0' && !has8DigitOrHigher)
+							else if (startsWithZero && !has8DigitOrHigher)
 								return{ LexemeType::OctalNumber, pos, buf }; //< octal
 							else
 								return{ LexemeType::IntNumber, pos, buf }; //< integer								
 						}
-						// else fall through
+						//v fallthrough
 					}
-					return{ (c == '0' ? LexemeType::OctalNumber : LexemeType::IntNumber), pos, buf };
+					// return octal/integer number
+					return{ (startsWithZero ? LexemeType::OctalNumber : LexemeType::IntNumber), pos, buf };
 				}
 
 				switch (c) {
@@ -533,30 +619,49 @@ namespace calc::expr {
 					return{ LexemeType::Escape, pos, std::string{ c, getNextChar() } };
 				case '=':
 					return{ LexemeType::Equal, pos, c };
-				case '+':
-					return{ LexemeType::Add, pos, c };
-				case '-':
-					return{ LexemeType::Subtract, pos, c };
-				case '*':
-					return{ LexemeType::Multiply, pos, c };
-				case '/':
-					return{ LexemeType::Divide, pos, c };
-				case '%':
-					return{ LexemeType::Percent, pos, c };
+				case ':':
+					return{ LexemeType::Colon, pos, c };
+				case ';':
+					return{ LexemeType::Semicolon, pos, c };
+				case '+': // add
+				case '-': // subtract
+				case '*': // multiply
+				case '/': // divide
+				case '%': // modulo
+				case '!': // negate binary value
+				case '|': // bitwise OR
+				case '&': // bitwise AND
+				case '^': // bitwise XOR
+				case '~': // bitwise NOT
+					return{ LexemeType::Operator, pos, c };
 				case ' ': case '\t': case '\v': case '\r': case '\n':
 					goto GET_NEXT_LEXEME; //< skip whitespace characters
 				case '.':
-					return{ LexemeType::Period, pos, c };
+					if (nextCharIs(str::stdpred::isdigit)) {
+						goto PARSE_NUMBER;
+					}
+					else return{ LexemeType::Period, pos, c };
 				case ',':
 					return{ LexemeType::Comma, pos, c };
+				case '$': //> (Note: this must be escaped in most shells, but it is the most recognizable character for this)
+				case '@':
+					return{ LexemeType::Macro, pos, c };
 				case '<':
 					return{ LexemeType::AngleBracketOpen, pos, c };
 				case '>':
 					return{ LexemeType::AngleBracketClose, pos, c };
+				case '[':
+					return{ LexemeType::SquareBracketOpen, pos, c };
+				case ']':
+					return{ LexemeType::SquareBracketClose, pos, c };
 				case '(':
-					return{ LexemeType::BracketOpen, pos, c };
+					return{ LexemeType::ParenthesisOpen, pos, c };
 				case ')':
-					return{ LexemeType::BracketClose, pos, c };
+					return{ LexemeType::ParenthesisClose, pos, c };
+				case '{':
+					return{ LexemeType::BraceOpen, pos, c };
+				case '}':
+					return{ LexemeType::BraceClose, pos, c };
 				default:
 					if (throwOnUnknownLexeme)
 						throw make_exception("lexer::getNextLexeme(): Character \"", c, "\" at pos (", pos, ") is not a recognized lexeme!");
@@ -564,34 +669,34 @@ namespace calc::expr {
 				}
 			}
 
-			std::vector<lexeme> get_lexemes(bool includeEofLexeme = true, bool startFromBeginning = false)
+			/**
+			 * @brief						Tokenizes the input stream into a vector of lexemes.
+			 * @param startFromBeginning  - When true, always begins tokenizing lexemes at the stream beginning; otherwise, starts at the current stream getter pos.
+			 * @returns						The resulting vector after tokenizing the buffer stream into lexemes.
+			 */
+			std::vector<lexeme> get_lexemes(bool startFromBeginning = false)
 			{
 				std::vector<lexeme> lexemes;
 
 				// move to the beginning of the stream, if specified
 				if (startFromBeginning)
 					movePos(0, std::ios::beg);
-				// short circuit and return empty vector if stream is at eof
+				// short circuit and return empty vector if stream getter position is at the end
 				else if (eof())
 					return lexemes;
 
 				// get the remaining length of the stream
 				const auto pos{ getPos() };
 				movePos(0, std::ios::end);
-				const auto len{ getPos() };
+				const auto len{ getPos() - pos };
 				setPos(pos);
 
 				// reserve enough space for every following char to be a lexeme
 				lexemes.reserve(len - pos);
 
 				// get all remaining lexemes
-				while (!eof()) {
+				while (good()) {
 					lexemes.emplace_back(getNextLexeme());
-				}
-
-				// remove the EOF token if specified
-				if (lexemes.size() > 0 && !includeEofLexeme && lexemes.back().type == LexemeType::_EOF) {
-					lexemes.pop_back();
 				}
 
 				// shrink the final vector to fit actual contents
@@ -614,8 +719,8 @@ namespace calc::expr {
 
 		/// @brief	Primitive tokenizer that converts lexemes into primitive tokens.
 		class primitive_tokenizer {
+		protected:
 			std::vector<lexeme> lexemes;
-			size_t lastPos{ 0 };
 
 		public:
 			primitive_tokenizer(std::vector<lexeme>&& lexemes) : lexemes{ std::move(lexemes) } {}
@@ -629,6 +734,56 @@ namespace calc::expr {
 
 				vec.shrink_to_fit();
 				return vec;
+			}
+		};
+
+
+		struct token : std::variant<primitive, complex> {
+			using base_t = std::variant<primitive, complex>;
+			// use base constructors
+			base_t::variant;
+
+			/// @brief	Applies the specified visitor to this variant token.
+			constexpr auto visit(auto&& visitor) const { return std::visit(std::forward<decltype(visitor)>(visitor), (*this)); }
+
+			template<var::derived_from_templated<basic_token> T>
+			constexpr bool is_type() const noexcept { return std::holds_alternative<T>(*this); }
+
+			constexpr bool is_primitive() const noexcept { return is_type<primitive>(); }
+
+			template<std::same_as<PrimitiveTokenType> TTokenType = PrimitiveTokenType>
+			constexpr PrimitiveTokenType getType() const requires (is_primitive())
+			{
+
+			}
+
+			std::string getValue() const
+			{
+				return visit([](auto&& value) {
+					return value.value;
+				});
+			}
+
+			friend std::ostream& operator<<(std::ostream& os, const token& tkn)
+			{
+				std::visit([&os](auto&& value) {
+					os << std::forward<decltype(value)>(value);
+				}, tkn);
+				return os;
+			}
+		};
+
+		class tokenizer {
+			std::vector<primitive> primitives;
+
+		public:
+			constexpr tokenizer(std::vector<primitive>&& primitives) : primitives{ std::move(primitives) } {}
+
+			std::vector<token> tokenize()
+			{
+				std::vector<token> tokens;
+
+				return tokens;
 			}
 		};
 	}
