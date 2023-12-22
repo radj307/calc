@@ -905,7 +905,6 @@ namespace calc::expr {
 				//   Replace FunctionParams with FunctionParamsOpen/Close, and add a goto
 				//    statement up here to allow tokenizing inside function parameter brackets.
 
-
 				const auto lex{ *iterator };
 
 				switch (lex.type) {
@@ -1010,8 +1009,7 @@ namespace calc::expr {
 					return tokens;
 				}
 				case LexemeType::ParenthesisClose:
-					// unmatched closing bracket
-					break;
+					throw make_exception(make_error_message_from(iterator, "UNMATCHED", "Syntax Error: Unmatched closing bracket!"));
 				default:
 					break;
 				}
