@@ -148,11 +148,14 @@ namespace calc::expr {
 	// tokenizers:
 
 	namespace tkn {
+		/// @brief	Requires type T to be a valid token type enum.
+		template<typename T> concept is_token_type = var::any_same<T, LexemeType, PrimitiveTokenType, TokenType>;
+
 		/**
 		 * @brief				A basic token object with the specified token type.
 		 * @tparam TTokenType -	The type of token contained by this instance.
 		 */
-		template<var::any_same<LexemeType, PrimitiveTokenType, TokenType> TTokenType>
+		template<is_token_type TTokenType>
 		struct basic_token {
 			using type_t = TTokenType;
 
@@ -180,7 +183,7 @@ namespace calc::expr {
 			 * @param text		  - The text that the token represents.
 			 */
 			constexpr basic_token(const type_t& type, const auto position, const char text) : type{ type }, pos{ static_cast<std::streamoff>(position) }, text{ text } {}
-			template<var::any_same<LexemeType, PrimitiveTokenType, TokenType> T>
+			template<is_token_type T>
 			constexpr basic_token(const type_t& type, basic_token<T> const& otherToken) : type{ type }, pos{ otherToken.pos }, text{ otherToken.text } {}
 
 			/// @brief	Gets the (exclusive) ending position of this token.
@@ -708,31 +711,10 @@ namespace calc::expr {
 			}
 		};
 
-		/**
-		 * @brief				Returns the sequence resulting from applying the specified selector to the specified source sequence.
-		 * @tparam TSource	  - The type of item in the source sequence.
-		 * @tparam TResult	  - The type of item in the result sequence.
-		 * @param source	  - The source sequence to apply the selector to.
-		 * @param selector	  - A transformation function to apply to each item.
-		 * @returns				The items returned by the selector, in the same order as the source items.
-		 */
-		template<typename TResult, typename TSource, var::function<TResult, TSource> TSelector>
-		constexpr std::vector<TResult> select(std::vector<TSource> const& source, const TSelector& selector)
-		{
-			std::vector<TResult> results;
-			results.reserve(source.size());
+		template<typename T>
+		struct error {
 
-			for (const auto& item : source) {
-				results.emplace_back(selector($fwd(item)));
-			}
-
-			return results;
-		}
-		template<typename TSource>
-		constexpr auto select(std::vector<TSource> const& source, const auto& selector)
-		{
-			return select<std::invoke_result_t<decltype(selector), TSource>>(source, selector);
-		}
+		};
 
 		/// @brief	Primitive tokenizer that converts lexemes into primitive tokens.
 		class primitive_tokenizer {
@@ -740,7 +722,7 @@ namespace calc::expr {
 			using const_iterator_t = typename std::vector<lexeme>::const_iterator;
 
 		protected:
-			std::vector<lexeme> lexemes;
+			const std::vector<lexeme> lexemes;
 			const_iterator_t begin;
 			const_iterator_t end;
 			const_iterator_t current;
@@ -984,8 +966,7 @@ namespace calc::expr {
 						// get the lexemes inside of the brackets (if there are any)
 						if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
 							// Recursively tokenize the inner lexemes
-							const auto innerLexemes{ getRange(nextNonAlpha + 1, paramEndBracket - 1) };
-							const auto inner{ primitive_tokenizer{ innerLexemes }.tokenize() }; //< RECURSE
+							const auto inner{ primitive_tokenizer{ getRange(nextNonAlpha + 1, paramEndBracket) }.tokenize() }; //< RECURSE
 							functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
 						}
 
