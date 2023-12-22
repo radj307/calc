@@ -1,6 +1,7 @@
 #pragma once
 #include <var.hpp>				//< for concepts
 #include <charcompare.hpp>		//< for stdpred noexcept
+#include <strcore.hpp>			//< for stringify
 #include <make_exception.hpp>	//< for make_exception
 
 #include <cstdint>
@@ -78,14 +79,16 @@ namespace calc::expr {
 
 		// A variable name.
 		Variable,
-		// A sub-expression, consisting of an opening bracket, operands, and an operator. Flow control.
-		Expression,
+		// The open bracket for an expression.
+		ExpressionOpen,
+		// The close bracket for an expression.
+		ExpressionClose,
 		// A function name.
 		FunctionName,
-		// A function parameter block.
-		FunctionParams,
-		// A function body block.
-		FunctionBody,
+		// The open bracket for a function parameter block.
+		FunctionParamsOpen,
+		// The close bracket for a function parameter block.
+		FunctionParamsClose,
 		// ([1-9]+) An integral number that starts with a non-zero digit. The underlying value of lexemes are not validated by the lexer.
 		IntNumber,
 		// ([1-9][0-9]+.[0-9]+) A floating-point number that contains at least one decimal point. The underlying value of lexemes are not validated by the lexer.
@@ -180,7 +183,7 @@ namespace calc::expr {
 			template<var::any_same<LexemeType, PrimitiveTokenType, TokenType> T>
 			constexpr basic_token(const type_t& type, basic_token<T> const& otherToken) : type{ type }, pos{ otherToken.pos }, text{ otherToken.text } {}
 
-			/// @brief	Gets the (exlusive) ending position of this token.
+			/// @brief	Gets the (exclusive) ending position of this token.
 			constexpr auto getEndPos() const noexcept { return pos + text.size(); }
 
 			/// @brief	Checks if this token is directly adjacent to the specified position.
@@ -203,6 +206,11 @@ namespace calc::expr {
 			friend constexpr bool operator!=(const basic_token<TTokenType>& l, const basic_token<TTokenType>& r)
 			{
 				return l.pos != r.pos || l.type != r.type || l.str != r.str;
+			}
+
+			constexpr std::string get_debug_string() const noexcept
+			{
+				return str::stringify("(Start Index: ", pos, ", End Index: ", getEndPos() - 1, " Text: \"", text, "\")");
 			}
 
 			friend std::ostream& operator<<(std::ostream& os, const basic_token<type_t>& tkn) { return os << tkn.text; }
@@ -568,6 +576,11 @@ namespace calc::expr {
 										break;
 									}
 								}
+								else if (c == ',' && !str::stdpred::isdigit(peekNextChar())) {
+									// this comma is at the end of the number, put it back & stop reading
+									ungetChar();
+									break;
+								}
 								else if (hasDecimalPoint && c == ',') {
 									// we already found a decimal point, so why is there a comma?
 									//  Consider it a separator; put it back and stop reading more chars
@@ -732,6 +745,33 @@ namespace calc::expr {
 			const_iterator_t end;
 			const_iterator_t current;
 
+			template<size_t INDENT = 10, var::streamable... Ts>
+			std::string make_error_message_from(const_iterator_t const& iterator, std::string const& tokenErrorMessage, Ts&&... message)
+			{
+				std::stringstream ss;
+				(ss << ... << message);
+
+				if (sizeof...(Ts) > 0)
+					ss << '\n';
+
+				// previous token:
+				if (iterator != begin)
+					ss << indent(INDENT) << "Prev. Token: " << (iterator - 1)->get_debug_string() << '\n';
+				else
+					ss << indent(INDENT) << "Prev. Token: (None)" << '\n';
+
+				// error token:
+				ss << indent(INDENT) << "Token:       " << iterator->get_debug_string() << " <--- " << tokenErrorMessage << '\n';
+
+				// next token:
+				if (iterator != end && (iterator + 1) != end)
+					ss << indent(INDENT) << "Next Token:  " << (iterator + 1)->get_debug_string();
+				else
+					ss << indent(INDENT) << "Next Token:  (None)";
+
+				return ss.str();
+			}
+
 			bool isFunctionName(std::string const& functionName) const noexcept
 			{
 				// TODO: Implement this
@@ -752,8 +792,15 @@ namespace calc::expr {
 
 			std::vector<lexeme> getRange(const_iterator_t const& begin, const_iterator_t const& end)
 			{
+				const auto distance{ std::distance(begin, end) };
+
+				if (distance <= 0)
+					return{};
+				if (distance == 1)
+					return{ *begin };
+
 				std::vector<lexeme> vec;
-				vec.reserve(std::distance(begin, end));
+				vec.reserve(distance);
 
 				for (auto it{ begin }; it != end; ++it) {
 					vec.emplace_back(*it);
@@ -918,16 +965,32 @@ namespace calc::expr {
 				case LexemeType::Alpha:
 				{ // function or variable
 					if (const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha) };
-						nextNonAlpha != end && nextNonAlpha->type == LexemeType::ParenthesisOpen) {
+						nextNonAlpha != end && nextNonAlpha->type == LexemeType::ParenthesisOpen
+						&& (nextNonAlpha == begin || nextNonAlpha->isAdjacentTo(*(nextNonAlpha - 1)))) {
 						// is a function
 						std::vector<primitive> functionSegments{
 							combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
 						};
-						functionSegments.reserve(2);
 
-						const auto params{ getBrackets(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
-						functionSegments.emplace_back(combine_tokens(PrimitiveTokenType::FunctionParams, params));
-						iterator = nextNonAlpha + params.size() - 1; //< subtract 1 to avoid eating next lexeme when caller increments current
+						// add the function param open token
+						functionSegments.emplace_back(primitive{ PrimitiveTokenType::FunctionParamsOpen, *nextNonAlpha });
+
+						// get pointer for function param close
+						const auto& paramEndBracket{ findEndBracket(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
+
+						if (paramEndBracket == end)
+							throw make_exception(make_error_message_from(nextNonAlpha, "UNMATCHED", "Syntax Error: Function \"", functionSegments.front().text, "\" has unmatched opening bracket!"));
+
+						// get the lexemes inside of the brackets (if there are any)
+						if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
+							// Recursively tokenize the inner lexemes
+							const auto innerLexemes{ getRange(nextNonAlpha + 1, paramEndBracket - 1) };
+							const auto inner{ primitive_tokenizer{ innerLexemes }.tokenize() }; //< RECURSE
+							functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
+						}
+
+						functionSegments.emplace_back(primitive{ PrimitiveTokenType::FunctionParamsClose, *paramEndBracket });
+						iterator = paramEndBracket; //< update the iterator
 
 						return functionSegments;
 					}
@@ -944,6 +1007,30 @@ namespace calc::expr {
 					}
 					break;
 				}
+				case LexemeType::ParenthesisOpen:
+				{
+					std::vector<primitive> tokens{};
+
+					const auto closeBracket{ findEndBracket(iterator, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
+
+					if (closeBracket == end)
+						throw make_exception(make_error_message_from(iterator, "UNMATCHED", "Syntax Error: Unmatched opening bracket!"));
+
+					tokens.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *iterator });
+
+					const auto inner{ primitive_tokenizer{ getRange(iterator + 1, closeBracket) }.tokenize() };
+
+					tokens.insert(tokens.end(), inner.begin(), inner.end());
+
+					tokens.emplace_back(primitive{ PrimitiveTokenType::ExpressionClose, *closeBracket });
+
+					iterator = closeBracket; //< update the iterator
+
+					return tokens;
+				}
+				case LexemeType::ParenthesisClose:
+					// unmatched closing bracket
+					break;
 				default:
 					break;
 				}
@@ -951,16 +1038,7 @@ namespace calc::expr {
 			}
 
 		public:
-			primitive_tokenizer(const std::vector<lexeme>& lexemes) : lexemes{ lexemes }, begin{ lexemes.begin() }, end{ lexemes.end() }, current{ lexemes.begin() }
-			{
-				// remove _EOF lexeme(s)
-				this->lexemes.erase(std::remove_if(this->lexemes.begin(), this->lexemes.end(), [](auto&& lex) { return lex.type == LexemeType::_EOF; }), this->lexemes.end());
-			}
-			primitive_tokenizer(std::vector<lexeme>&& lexemes) : lexemes{ std::move(lexemes) }, begin{ lexemes.begin() }, end{ lexemes.end() }, current{ lexemes.begin() }
-			{
-				// remove _EOF lexeme(s)
-				this->lexemes.erase(std::remove_if(this->lexemes.begin(), this->lexemes.end(), [](auto&& lex) { return lex.type == LexemeType::_EOF; }), this->lexemes.end());
-			}
+			primitive_tokenizer(const std::vector<lexeme>& lexemes) : lexemes{ lexemes }, begin{ lexemes.begin() }, end{ lexemes.end() }, current{ lexemes.begin() } {}
 
 			/// @brief	Tokenizes the lexeme buffer into a vector of primitive tokens.
 			std::vector<primitive> tokenize()
@@ -973,6 +1051,8 @@ namespace calc::expr {
 
 				// tokenize all of the lexemes into primitives
 				for (; current != end; ++current) {
+					if (current->type == LexemeType::_EOF) break;
+
 					const auto tokens{ getNextPrimitiveFrom(current) };
 					vec.insert(vec.end(), tokens.begin(), tokens.end());
 				}

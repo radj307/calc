@@ -66,10 +66,11 @@ static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveTypeNames{
 	{ calc::expr::PrimitiveTokenType::Unknown, "Unknown" },
 	{ calc::expr::PrimitiveTokenType::Variable, "Variable" },
-	{ calc::expr::PrimitiveTokenType::Expression, "Expression" },
+	{ calc::expr::PrimitiveTokenType::ExpressionOpen, "ExpressionOpen" },
+	{ calc::expr::PrimitiveTokenType::ExpressionClose, "ExpressionClose" },
 	{ calc::expr::PrimitiveTokenType::FunctionName, "FunctionName" },
-	{ calc::expr::PrimitiveTokenType::FunctionParams, "FunctionParams" },
-	{ calc::expr::PrimitiveTokenType::FunctionBody, "FunctionBody" },
+	{ calc::expr::PrimitiveTokenType::FunctionParamsOpen, "FunctionParamsOpen" },
+	{ calc::expr::PrimitiveTokenType::FunctionParamsClose, "FunctionParamsClose" },
 	{ calc::expr::PrimitiveTokenType::IntNumber, "IntNumber" },
 	{ calc::expr::PrimitiveTokenType::RealNumber, "RealNumber" },
 	{ calc::expr::PrimitiveTokenType::BinaryNumber, "BinaryNumber" },
@@ -116,7 +117,8 @@ int main(const int argc, char** argv)
 		using namespace calc::expr;
 
 		//const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
-		const auto expr{ "((-2^5 * 3 - 7) / (4a % 3) + (a - sqrt(25, 50(asdf())) + 4 * 7) * (sin(60) + cos(-45))) - (log(100) + 8 / (tan(30) * exp(2)))" };
+		const auto expr{ "(09(-2^5 * 3 - 7) / (4a % 3) + (a - sqrt(25, 50 asdf())) + 4 * 7) * (sin(60) + cos(-45))) - (log(100) + 8 / (tan(30) * exp(2)))" };
+		//const auto expr{ "(f() f(1) 2)" };
 		//                01234567891111111111222222222233333333
 		//                          0123456789012345678901234567
 		const auto lexemes = tkn::lexer{ expr }.get_lexemes(false);
@@ -168,7 +170,7 @@ int main(const int argc, char** argv)
 
 		std::cout << "\n\n";
 
-		const auto combined{ calc::expr::tkn::combine_tokens(calc::expr::PrimitiveTokenType::Expression, std::move(lexemes)) };
+		const auto combined{ calc::expr::tkn::combine_tokens(calc::expr::PrimitiveTokenType::Unknown, std::move(lexemes)) };
 
 		std::cout << '\"' << expr << '\"' << '\n';
 		std::cout << '\"' << combined << '\"' << '\n';
