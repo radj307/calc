@@ -1,4 +1,5 @@
-﻿#include "ExpressionTokenizer.hpp"
+﻿#include "tokenizer/lexer.hpp"
+#include "tokenizer/primitive_tokenizer.hpp"
 
 // libcalc
 #include <Number.hpp>
@@ -162,7 +163,7 @@ int main(const int argc, char** argv)
 		using namespace calc::expr;
 
 		//const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
-		const auto expr{ "(09(-2^5 * 3 - 7) / (4a % 3) + (a - sqrt(25, 50 asdf())) + 4 * 7) * (sin(60) + cos(-45))) - (log(100) + 8 / (tan(30) * exp(2)))" };
+		const auto expr{ "(09(-2^5 * 3 - 7) / (4a % 3) + (a - sqrt(25, 50 asdf())) + 4 * 7) * (sin(60) + cos(-45)) - (log(100) + 8 / (tan(30) * exp(2)))" };
 		//const auto expr{ "(f() f(1) 2)" };
 		//                01234567891111111111222222222233333333
 		//                          0123456789012345678901234567
