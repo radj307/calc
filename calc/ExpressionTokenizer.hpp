@@ -28,7 +28,7 @@ namespace calc::expr {
 		Semicolon,
 		// ([+-*/%^!~]) An arithmetic operator of some kind.
 		Operator,
-		// ([A-Za-z]) An upper or lower-case letter.
+		// ([A-Za-z]) An upper or lower-case letter. Also includes underscores '_' that aren't in the middle of a number.
 		Alpha,
 		// ([1-9]+) An integral number that starts with a non-zero digit. The underlying value of lexemes are not validated by the lexer.
 		IntNumber,
@@ -76,14 +76,22 @@ namespace calc::expr {
 
 		// OPERAND TYPES:
 
-		// A number literal.
-		Number,
 		// A variable name.
 		VariableName,
 		// A sub-expression, consisting of an opening bracket, operands, and an operator. Flow control.
 		Expression,
 		// A function expression.
 		Function,
+		// ([1-9]+) An integral number that starts with a non-zero digit. The underlying value of lexemes are not validated by the lexer.
+		IntNumber,
+		// ([1-9][0-9]+.[0-9]+) A floating-point number that contains at least one decimal point. The underlying value of lexemes are not validated by the lexer.
+		RealNumber,
+		// ("0b[01]+") A binary number. Binary numbers always start with "0b". The underlying value of lexemes are not validated by the lexer.
+		BinaryNumber,
+		// (0[0-7]+) An octal number. Octal numbers always start with "0". The underlying value of lexemes are not validated by the lexer.
+		OctalNumber,
+		// (0x[0-9A-Fa-f]+) A hexadecimal number. Hex numbers always start with "0x". The underlying value of lexemes are not validated by the lexer.
+		HexNumber,
 
 		// FUNCTIONS:
 
@@ -102,6 +110,8 @@ namespace calc::expr {
 		Modulo,
 		// Exponent operator.
 		Exponent,
+		// Factorial operator.
+		Factorial,
 		// ("<<") Indicates a left bitshift operation.
 		LeftShift,
 		// (">>") Indicates a right bitshift operation.
@@ -135,7 +145,7 @@ namespace calc::expr {
 		 * @brief				A basic token object with the specified token type.
 		 * @tparam TTokenType -	The type of token contained by this instance.
 		 */
-		template<typename TTokenType>
+		template<var::any_same<LexemeType, PrimitiveTokenType, TokenType> TTokenType>
 		struct basic_token {
 			using type_t = TTokenType;
 
@@ -144,26 +154,38 @@ namespace calc::expr {
 			/// @brief	The starting position of the underlying value in the input stream.
 			std::streamoff pos;
 			/// @brief	The underlying string value that the token represents.
-			std::string value;
+			std::string text;
 
+			/// @brief	Creates a new empty token instance.
 			constexpr basic_token() = default;
+			constexpr basic_token(const type_t& type) : type{ type } {}
 			/**
 			 * @brief				Creates a new token instance with the specified type, starting position, and string value.
 			 * @param type		  - The type of token associated with the string value.
 			 * @param position	  - The starting position of the string value in the input stream.
-			 * @param strValue	  - The string value of the token.
+			 * @param text		  - The text that the token represents.
 			 */
-			constexpr basic_token(const type_t& type, const auto position, const std::string& strValue) : type{ type }, pos{ static_cast<std::streamoff>(position) }, value{ strValue } {}
-			constexpr basic_token(const type_t& type, const auto position, const char charValue) : type{ type }, pos{ static_cast<std::streamoff>(position) }, value{ charValue } {}
+			constexpr basic_token(const type_t& type, const auto position, const std::string& text) : type{ type }, pos{ static_cast<std::streamoff>(position) }, text{ text } {}
+			/**
+			 * @brief				Creates a new token instance with the specified type, starting position, and string value.
+			 * @param type		  - The type of token associated with the string value.
+			 * @param position	  - The starting position of the string value in the input stream.
+			 * @param text		  - The text that the token represents.
+			 */
+			constexpr basic_token(const type_t& type, const auto position, const char text) : type{ type }, pos{ static_cast<std::streamoff>(position) }, text{ text } {}
+			template<var::any_same<LexemeType, PrimitiveTokenType, TokenType> T>
+			constexpr basic_token(const type_t& type, basic_token<T> const& otherToken) : type{ type }, pos{ otherToken.pos }, text{ otherToken.text } {}
 
 			/// @brief	Gets the (exlusive) ending position of this token.
-			constexpr auto getEndPos() const noexcept { return pos + value.size(); }
+			constexpr auto getEndPos() const noexcept { return pos + text.size(); }
 
+			/// @brief	Checks if this token is directly adjacent to the specified position.
 			constexpr bool isAdjacentTo(const std::streamoff position) const noexcept
 			{
 				return position + 1 == pos
 					|| getEndPos() == position;
 			}
+			/// @brief	Checks if this token is directly adjacent to the specified other token.
 			constexpr bool isAdjacentTo(const basic_token<TTokenType>& other) const noexcept
 			{
 				return other.getEndPos() == pos
@@ -172,17 +194,14 @@ namespace calc::expr {
 
 			friend constexpr bool operator==(const basic_token<TTokenType>& l, const basic_token<TTokenType>& r)
 			{
-				return l.pos == r.pos && l.type == r.type && l.value == r.value;
+				return l.pos == r.pos && l.type == r.type && l.str == r.str;
 			}
 			friend constexpr bool operator!=(const basic_token<TTokenType>& l, const basic_token<TTokenType>& r)
 			{
-				return l.pos != r.pos || l.type != r.type || l.value != r.value;
+				return l.pos != r.pos || l.type != r.type || l.str != r.str;
 			}
 
-			friend std::ostream& operator<<(std::ostream& os, const basic_token<type_t>& tkn)
-			{
-				return os << tkn.value;
-			}
+			friend std::ostream& operator<<(std::ostream& os, const basic_token<type_t>& tkn) { return os << tkn.text; }
 		};
 
 	#pragma region combine_tokens
@@ -221,7 +240,7 @@ namespace calc::expr {
 			buf << $fwd(tokens);
 
 			endPos = $fwd(tokens).getEndPos();
-			}(), ...);
+			 }(), ...);
 
 			return{ type, startPos, buf.str() };
 		}
@@ -265,7 +284,7 @@ namespace calc::expr {
 			return{ type, startPos, buf.str() };
 		}
 		template<var::derived_from_templated<basic_token> TSource, typename TResultType, std::derived_from<basic_token<TResultType>> TResult = basic_token<TResultType>>
-		constexpr TResult combine_tokens(TResultType const& type, const std::vector<TSource> vec)
+		constexpr TResult combine_tokens(TResultType const& type, const std::vector<TSource>& vec)
 		{
 			size_t startPos{ static_cast<size_t>(EOF) };
 			size_t endPos{ 0ull };
@@ -313,6 +332,8 @@ namespace calc::expr {
 		protected:
 			// The underlying buffer stream.
 			std::stringstream sbuf;
+
+		#pragma region Protected Methods
 
 		#pragma region stream state
 			/**
@@ -382,15 +403,6 @@ namespace calc::expr {
 			{
 				return static_cast<off_t>(getPos());
 			}
-
-			inline pos_t careful_getPos()
-			{
-				const auto currentPos{ sbuf.tellg() };
-				sbuf.seekg(std::ios::beg);
-				const auto beginPos{ sbuf.tellg() };
-
-				return beginPos + currentPos;
-			}
 		#pragma endregion stream gpos
 
 		#pragma region peek/get NextChar
@@ -408,6 +420,9 @@ namespace calc::expr {
 				sbuf.get(c);
 				return c;
 			}
+			/// @brief	Increments the getter position by one, skipping the next char.
+			///          This is useful when you already have the next char from peekNextChar() and want to move the getter to the next char.
+			void skipNextChar() { (void)getNextChar(); }
 		#pragma endregion peek/get NextChar
 
 		#pragma region peek/get CharAt
@@ -454,6 +469,7 @@ namespace calc::expr {
 			}
 		#pragma endregion peek/get CharOff
 
+		#pragma region nextCharIs
 			/// @brief				Returns the specified predicate's result for the next char in the stream without changing the getter position.
 			/// @param predicate  - A predicate function whose return value determines the result of this method.
 			/// @returns			true when the predicate returned true for the next char; otherwise, false.
@@ -461,14 +477,14 @@ namespace calc::expr {
 			{
 				return predicate(peekNextChar());
 			}
+		#pragma endregion nextCharIs
 
-			/// @brief	Increments the getter position by one, skipping the next char.
-			///          This is useful when you already have the next char from peekNextChar() and want to move the getter to the next char.
-			void skipNextChar() { (void)getNextChar(); }
-
+		#pragma region ungetChar
 			/// @brief	Decrements the getter position by one, making the last char to be extracted from the stream available again.
 			void ungetChar() { sbuf.unget(); }
+		#pragma endregion ungetChar
 
+		#pragma region getWhile
 			/// @brief				Continues getting characters from the stream while the specified predicate returns true.
 			/// @param predicate  - A predicate function that accepts a char and returns true to continue or false to break from the loop.
 			std::string getWhile(const std::function<bool(char)>& predicate, const std::string& skipOverChars)
@@ -507,6 +523,9 @@ namespace calc::expr {
 
 				return buf;
 			}
+		#pragma endregion getWhile
+
+		#pragma endregion Protected Methods
 
 		public:
 			/// @brief	Creates a new lexer instance without any buffered data.
@@ -526,7 +545,7 @@ namespace calc::expr {
 				if (eof() || c == EOF)
 					return{ LexemeType::_EOF, pos, c };
 				// alpha
-				else if (str::stdpred::isalpha(c))
+				else if (str::stdpred::isalpha(c) || c == '_')
 					return{ LexemeType::Alpha, pos, c }; //< don't coalesce alpha; we'll do that during expression resolution
 				// numbers
 				else if (str::stdpred::isdigit(c)) {
@@ -674,12 +693,12 @@ namespace calc::expr {
 			 * @param startFromBeginning  - When true, always begins tokenizing lexemes at the stream beginning; otherwise, starts at the current stream getter pos.
 			 * @returns						The resulting vector after tokenizing the buffer stream into lexemes.
 			 */
-			std::vector<lexeme> get_lexemes(bool startFromBeginning = false)
+			std::vector<lexeme> get_lexemes(bool resetToBeginning = false)
 			{
 				std::vector<lexeme> lexemes;
 
 				// move to the beginning of the stream, if specified
-				if (startFromBeginning)
+				if (resetToBeginning)
 					movePos(0, std::ios::beg);
 				// short circuit and return empty vector if stream getter position is at the end
 				else if (eof())
@@ -719,72 +738,221 @@ namespace calc::expr {
 
 		/// @brief	Primitive tokenizer that converts lexemes into primitive tokens.
 		class primitive_tokenizer {
+			using iterator_t = typename std::vector<lexeme>::iterator;
+			using const_iterator_t = typename std::vector<lexeme>::const_iterator;
+
 		protected:
 			std::vector<lexeme> lexemes;
+			const_iterator_t begin;
+			const_iterator_t end;
+			const_iterator_t current;
+
+			bool isFunctionName(std::string const& functionName) const noexcept
+			{
+				// TODO: Implement this
+				return true;
+			}
+
+			/// @brief					Checks if the iterator has reached the end of the available lexemes
+			/// @param orEofLexeme	  -	When true, also checks if the iterator is at the _EOF lexeme.
+			/// @returns				true when the iterator is at the end (or EOF lexeme); otherwise, false.
+			bool at_end() const noexcept
+			{
+				return current == end;
+			}
+			bool hasNext() const noexcept
+			{
+				return !at_end() && std::distance(current, end) >= 1;
+			}
+
+			bool moveToNext()
+			{
+				if (current == end) return false;
+				++current;
+				return true;
+			}
+			bool moveToPrev()
+			{
+				if (current == begin) return false;
+				--current;
+				return true;
+			}
+
+			/// @brief	Gets the current lexeme without moving the iterator.
+			lexeme getCurrent() const
+			{
+				return *current;
+			}
+
+			lexeme peekNextLexeme() const
+			{
+				return *(current + 1);
+			}
+			lexeme getNextLexeme()
+			{
+				return *++current;
+			}
+
+			bool nextLexemeIs(const std::function<bool(lexeme)>& predicate) const
+			{
+				return hasNext() && predicate(peekNextLexeme());
+			}
+			bool nextLexemeIs(const LexemeType type) const
+			{
+				return hasNext() && peekNextLexeme().type == type;
+			}
+
+			std::vector<lexeme> peekWhile(const std::function<bool(lexeme)>& predicate, const size_t reserve_size = 8) const
+			{
+				std::vector<lexeme> vec;
+				vec.reserve(reserve_size);
+
+				for (auto it{ current }; hasNext(); ++it) {
+					if (!predicate(*it))
+						break;
+
+					vec.emplace_back(*it);
+				}
+
+				vec.shrink_to_fit();
+				return vec;
+			}
+			std::vector<lexeme> getWhile(const std::function<bool(lexeme)>& predicate, const size_t reserve_size = 8)
+			{
+				std::vector<lexeme> vec;
+				vec.reserve(reserve_size);
+
+				for (; hasNext(); ++current) {
+					if (!predicate(*current))
+						break;
+
+					vec.emplace_back(*current);
+				}
+
+				vec.shrink_to_fit();
+				return vec;
+			}
 
 		public:
-			primitive_tokenizer(std::vector<lexeme>&& lexemes) : lexemes{ std::move(lexemes) } {}
+			primitive_tokenizer(const std::vector<lexeme>& lexemes) : lexemes{ lexemes }, begin{ lexemes.begin() }, end{ lexemes.end() }, current{ lexemes.begin() }
+			{
+				// remove _EOF lexeme(s)
+				this->lexemes.erase(std::remove_if(this->lexemes.begin(), this->lexemes.end(), [](auto&& lex) { return lex.type == LexemeType::_EOF; }), this->lexemes.end());
+			}
+			primitive_tokenizer(std::vector<lexeme>&& lexemes) : lexemes{ std::move(lexemes) }, begin{ lexemes.begin() }, end{ lexemes.end() }, current{ lexemes.begin() }
+			{
+				// remove _EOF lexeme(s)
+				this->lexemes.erase(std::remove_if(this->lexemes.begin(), this->lexemes.end(), [](auto&& lex) { return lex.type == LexemeType::_EOF; }), this->lexemes.end());
+			}
+
+			primitive getNextPrimitive()
+			{
+				const auto lex{ getNextLexeme() };
+
+				switch (lex.type) {
+				case LexemeType::Operator:
+					switch (lex.text.front()) {
+					case '+':
+						return{ PrimitiveTokenType::Add, lex };
+					case '-':
+						return{ PrimitiveTokenType::Subtract, lex };
+					case '*':
+						return{ PrimitiveTokenType::Multiply, lex };
+					case '/':
+						return{ PrimitiveTokenType::Divide, lex };
+					case '%':
+						return{ PrimitiveTokenType::Modulo, lex };
+					case '!':
+						return{ PrimitiveTokenType::Factorial, lex };
+					case '|':
+						return{ PrimitiveTokenType::BitOR, lex };
+					case '&':
+						return{ PrimitiveTokenType::BitAND, lex };
+					case '^':
+						return{ PrimitiveTokenType::BitXOR, lex };
+					case '~':
+						return{ PrimitiveTokenType::BitNOT, lex };
+					default:
+						throw make_exception("primitive_tokenizer::getNextPrimitive():  No implementation available for operator type \"", lex.text, '\"');
+					}
+					break;
+				case LexemeType::BinaryNumber:
+					return{ PrimitiveTokenType::BinaryNumber, lex };
+				case LexemeType::OctalNumber:
+					return{ PrimitiveTokenType::OctalNumber, lex };
+				case LexemeType::HexNumber:
+					return{ PrimitiveTokenType::HexNumber, lex };
+				case LexemeType::IntNumber:
+					return{ PrimitiveTokenType::IntNumber, lex };
+				case LexemeType::RealNumber:
+					return{ PrimitiveTokenType::RealNumber, lex };
+				case LexemeType::Alpha:
+					// peek ahead
+					std::string functionName{};
+					std::vector<lexeme> vec;
+					vec.reserve(std::distance(current, end));
+
+					size_t bracketDepth{ 0 };
+					auto it{ current };
+					for (; it != end; ++it) {
+						switch (it->type) {
+						case LexemeType::ParenthesisOpen:
+							if (!isFunctionName(functionName))
+								goto BREAK; //< this isn't a function
+							++bracketDepth;
+							break;
+						case LexemeType::ParenthesisClose:
+							// reached end of function
+							if (--bracketDepth == 0) {
+								current = it;
+								return combine_tokens(PrimitiveTokenType::Function, vec);
+							}
+							break;
+						case LexemeType::Alpha:
+							if (!bracketDepth) // func bracket not reached; append to functionName
+								functionName += it->text;
+							break;
+						default:
+							if (!bracketDepth) // func bracket not reached & this lexeme isn't valid; break
+								goto BREAK;
+							break;
+						}
+
+						vec.emplace_back(*it);
+					}
+					// TODO: Improve this exception v:
+					if (bracketDepth != 0)
+						throw make_exception("Tokenization Error:  Expected an ending bracket for ");
+					// TODO: Improve this exception ^:
+
+				BREAK:
+					break;
+				}
+			}
 
 			/// @brief	Tokenizes the lexeme buffer into a vector of primitive tokens.
-			std::vector<primitive> tokenize()
+			std::vector<primitive> tokenize(bool resetToBeginning = false)
 			{
 				std::vector<primitive> vec{};
+				if (lexemes.empty()) return vec; //< if there aren't any lexemes, short circuit
 
-				// ...
+				// reserve enough space for 1:1 token count. Allow reallocations on exceeding this limit tho
+				vec.reserve(lexemes.size());
 
+				// move the iterator to the beginning if specified
+				if (resetToBeginning)
+					current = begin;
+
+				// tokenize all of the lexemes into primitives
+				while (hasNext()) {
+					vec.emplace_back(getNextPrimitive());
+				}
+
+				// remove unused space & return
 				vec.shrink_to_fit();
 				return vec;
 			}
 		};
 
-
-		struct token : std::variant<primitive, complex> {
-			using base_t = std::variant<primitive, complex>;
-			// use base constructors
-			base_t::variant;
-
-			/// @brief	Applies the specified visitor to this variant token.
-			constexpr auto visit(auto&& visitor) const { return std::visit(std::forward<decltype(visitor)>(visitor), (*this)); }
-
-			template<var::derived_from_templated<basic_token> T>
-			constexpr bool is_type() const noexcept { return std::holds_alternative<T>(*this); }
-
-			constexpr bool is_primitive() const noexcept { return is_type<primitive>(); }
-
-			template<std::same_as<PrimitiveTokenType> TTokenType = PrimitiveTokenType>
-			constexpr PrimitiveTokenType getType() const requires (is_primitive())
-			{
-
-			}
-
-			std::string getValue() const
-			{
-				return visit([](auto&& value) {
-					return value.value;
-				});
-			}
-
-			friend std::ostream& operator<<(std::ostream& os, const token& tkn)
-			{
-				std::visit([&os](auto&& value) {
-					os << std::forward<decltype(value)>(value);
-				}, tkn);
-				return os;
-			}
-		};
-
-		class tokenizer {
-			std::vector<primitive> primitives;
-
-		public:
-			constexpr tokenizer(std::vector<primitive>&& primitives) : primitives{ std::move(primitives) } {}
-
-			std::vector<token> tokenize()
-			{
-				std::vector<token> tokens;
-
-				return tokens;
-			}
-		};
 	}
 }

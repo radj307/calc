@@ -1,6 +1,9 @@
 ﻿#include "ExpressionTokenizer.hpp"
-#include "Number.hpp"
 
+// libcalc
+#include <Number.hpp>
+
+// 307lib
 #include <TermAPI.hpp>				//< for console helpers
 #include <color-sync.hpp>			//< for sync
 #include <opt3.hpp>					//< for ArgManager
@@ -32,6 +35,7 @@ struct print_help {
 			;
 	}
 };
+$DefineExcept(print_help_exception);
 
 static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 	{ calc::expr::LexemeType::Unknown, "Unknown" },
@@ -59,6 +63,31 @@ static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 	{ calc::expr::LexemeType::BraceClose, "BraceClose" },
 	{ calc::expr::LexemeType::_EOF, "_EOF" },
 };
+static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveTypeNames{
+	{ calc::expr::PrimitiveTokenType::Unknown, "Unknown" },
+	{ calc::expr::PrimitiveTokenType::VariableName, "VariableName" },
+	{ calc::expr::PrimitiveTokenType::Expression, "Expression" },
+	{ calc::expr::PrimitiveTokenType::Function, "Function" },
+	{ calc::expr::PrimitiveTokenType::IntNumber, "IntNumber" },
+	{ calc::expr::PrimitiveTokenType::RealNumber, "RealNumber" },
+	{ calc::expr::PrimitiveTokenType::BinaryNumber, "BinaryNumber" },
+	{ calc::expr::PrimitiveTokenType::OctalNumber, "OctalNumber" },
+	{ calc::expr::PrimitiveTokenType::HexNumber, "HexNumber" },
+	{ calc::expr::PrimitiveTokenType::Add, "Add" },
+	{ calc::expr::PrimitiveTokenType::Subtract, "Subtract" },
+	{ calc::expr::PrimitiveTokenType::Multiply, "Multiply" },
+	{ calc::expr::PrimitiveTokenType::Divide, "Divide" },
+	{ calc::expr::PrimitiveTokenType::Modulo, "Modulo" },
+	{ calc::expr::PrimitiveTokenType::Exponent, "Exponent" },
+	{ calc::expr::PrimitiveTokenType::Factorial, "Factorial" },
+	{ calc::expr::PrimitiveTokenType::LeftShift, "LeftShift" },
+	{ calc::expr::PrimitiveTokenType::RightShift, "RightShift" },
+	{ calc::expr::PrimitiveTokenType::BitOR, "BitOR" },
+	{ calc::expr::PrimitiveTokenType::BitAND, "BitAND" },
+	{ calc::expr::PrimitiveTokenType::BitXOR, "BitXOR" },
+	{ calc::expr::PrimitiveTokenType::BitNOT, "BitNOT" },
+	{ calc::expr::PrimitiveTokenType::Equal, "Equal" },
+};
 
 int main(const int argc, char** argv)
 {
@@ -74,10 +103,12 @@ int main(const int argc, char** argv)
 
 		using namespace calc::expr;
 
-		const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
+		//const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
+		const auto expr{ "((-2^5 * 3 - 7) / (4 % 3) + (sqrt(25) + 4 * 7) * (sin(60) + cos(-45))) - (log(100) + 8 / (tan(30) * exp(2)))" };
 		//                01234567891111111111222222222233333333
 		//                          0123456789012345678901234567
 		const auto lexemes = tkn::lexer{ expr }.get_lexemes(false);
+		const auto primitives = tkn::primitive_tokenizer{ lexemes }.tokenize();
 
 		std::cout << "Input Expression: " << '\"' << expr << '\"' << '\n' << '\n';
 
@@ -99,7 +130,7 @@ int main(const int argc, char** argv)
 			<< indent(COLSZ_3 + 1, 0, '-') << '|'
 			<< indent(20, 0, '-') << '\n';
 		int i = 0;
-		for (const auto& it : lexemes) {
+		for (const auto& it : primitives) {
 			std::string str{ std::to_string(i++) };
 
 			std::cout << str << indent(COLSZ_0, str.size()) << "| ";
@@ -116,11 +147,11 @@ int main(const int argc, char** argv)
 			std::cout << str << indent(COLSZ_2, str.size()) << "| ";
 
 			// print token type
-			str = LexemeTypeNames.find(it.type)->second;
+			str = PrimitiveTypeNames.find(it.type)->second;
 			std::cout << str << indent(COLSZ_3, str.size()) << "| ";
 
 			// print token value
-			std::cout << it.value << '\n';
+			std::cout << it.text << '\n';
 		}
 
 		std::cout << "\n\n";
@@ -137,7 +168,7 @@ int main(const int argc, char** argv)
 
 		const auto pipedInput{ hasPendingDataSTDIN() };
 
-		if ((args.empty() && !pipedInput) || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
+		if (args.empty() || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
 			std::cout << print_help(procName.generic_string());
 			return 0;
 		}
@@ -147,11 +178,15 @@ int main(const int argc, char** argv)
 		}
 
 		// create a stringstream for the entire expression buffer
-		std::stringstream exprBuff;
+		std::stringstream exprbuf;
 
 		// if there is piped input move it into the expression buffer
 		if (pipedInput) {
-			exprBuff << std::cin.rdbuf();
+			exprbuf << std::cin.rdbuf();
+		}
+
+		for (const auto& param : args.getv_all<opt3::Parameter>()) {
+			exprbuf << param << ' ';
 		}
 
 		return 0;

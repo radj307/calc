@@ -20,4 +20,4 @@ target_compile_options(calc PRIVATE "${307lib_compiler_commandline}")
 
 target_sources(calc PRIVATE "${HEADERS}")
 
-target_link_libraries(calc PRIVATE TermAPI filelib strlib)
+target_link_libraries(calc PRIVATE libcalc TermAPI filelib strlib)

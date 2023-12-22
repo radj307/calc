@@ -11,4 +11,5 @@ GET_VERSION_TAG("${CMAKE_CURRENT_SOURCE_DIR}" calc)
 project ("calc" VERSION "${calc_VERSION}" LANGUAGES CXX)
 
 add_subdirectory("307lib")
+add_subdirectory("libcalc")
 add_subdirectory("calc")
