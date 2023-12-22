@@ -77,11 +77,15 @@ namespace calc::expr {
 		// OPERAND TYPES:
 
 		// A variable name.
-		VariableName,
+		Variable,
 		// A sub-expression, consisting of an opening bracket, operands, and an operator. Flow control.
 		Expression,
-		// A function expression.
-		Function,
+		// A function name.
+		FunctionName,
+		// A function parameter block.
+		FunctionParams,
+		// A function body block.
+		FunctionBody,
 		// ([1-9]+) An integral number that starts with a non-zero digit. The underlying value of lexemes are not validated by the lexer.
 		IntNumber,
 		// ([1-9][0-9]+.[0-9]+) A floating-point number that contains at least one decimal point. The underlying value of lexemes are not validated by the lexer.
@@ -205,56 +209,6 @@ namespace calc::expr {
 		};
 
 	#pragma region combine_tokens
-		/**
-		 * @brief					Combines the specified tokens to create a single new token instance with the specified type.
-		 * @tparam FILL_CHAR	  -	The character to use as a separator when combining token string values.
-		 *							 Defaults to a space ' '.
-		 * @tparam TResultType	  -	The token type of the resulting token.
-		 * @tparam TResultToken	  -	The type of the resulting token.
-		 * @param type			  -	The token type of the resulting token instance.
-		 * @param ...tokens		  -	At least one basic_token to combine into a new token.
-		 * @returns					A new token of the specified type.
-		 */
-		template<char FILL_CHAR, typename TResultType, std::derived_from<basic_token<TResultType>> TResultToken = basic_token<TResultType>, var::streamable... Ts>
-		constexpr TResultToken combine_tokens(TResultType const& type, Ts&&... tokens)
-		{
-			size_t startPos{ static_cast<size_t>(EOF) };
-			size_t endPos{ 0ull };
-			std::stringstream buf;
-
-			([&]() {
-				static_assert(var::derived_from_templated<decltype(tokens), basic_token>, "create_token does not accept inputs that are not tokens!");
-
-			std::streamoff pos{ $fwd(tokens).pos };
-
-			// use the smallest pos value as the beginning of the resulting token
-			if (pos < startPos)
-				startPos = $fwd(tokens).pos;
-
-			// pad out the gap between tokens with spaces
-			while (pos > endPos) {
-				buf << ' ';
-				++endPos;
-			}
-
-			buf << $fwd(tokens);
-
-			endPos = $fwd(tokens).getEndPos();
-			 }(), ...);
-
-			return{ type, startPos, buf.str() };
-		}
-		/**
-		 * @brief					Combines the specified tokens to create a single new token instance with the specified type.
-		 * @tparam TResultType	  -	The token type of the resulting token.
-		 * @tparam TResultToken	  -	The type of the resulting token.
-		 * @param type			  -	The token type of the resulting token instance.
-		 * @param ...tokens		  -	At least one basic_token to combine into a new token.
-		 * @returns					A new token of the specified type.
-		 */
-		template<typename TResultType, std::derived_from<basic_token<TResultType>> TResultToken = basic_token<TResultType>, var::streamable... Ts>
-		constexpr TResultToken combine_tokens(TResultType const& type, Ts&&... tokens) { return combine_tokens<' '>(type, $fwd(tokens)...); }
-
 		template<var::derived_from_templated<basic_token> TSource, typename TResultType, std::derived_from<basic_token<TResultType>> TResult = basic_token<TResultType>>
 		constexpr TResult combine_tokens(TResultType const& type, std::vector<TSource>&& vec)
 		{
@@ -262,13 +216,16 @@ namespace calc::expr {
 			size_t endPos{ 0ull };
 			std::stringstream buf;
 
+			for (const auto& it : vec) {
+				if (it.pos < startPos)
+					startPos = it.pos;
+				if (const auto& tknEndPos{ it.getEndPos() }; tknEndPos > endPos)
+					endPos = tknEndPos;
+			}
+
 			for (const auto& it : $fwd(vec)) {
 
 				auto pos{ it.pos };
-
-				// use the smallest pos value as the beginning of the resulting token
-				if (pos < startPos)
-					startPos = it.pos;
 
 				// pad out the gap between tokens with spaces
 				while (pos > endPos) {
@@ -290,13 +247,16 @@ namespace calc::expr {
 			size_t endPos{ 0ull };
 			std::stringstream buf;
 
+			for (const auto& it : vec) {
+				if (it.pos < startPos)
+					startPos = it.pos;
+				if (const auto& tknEndPos{ it.getEndPos() }; tknEndPos > endPos)
+					endPos = tknEndPos;
+			}
+
 			for (const auto& it : $fwd(vec)) {
 
 				auto pos{ it.pos };
-
-				// use the smallest pos value as the beginning of the resulting token
-				if (pos < startPos)
-					startPos = it.pos;
 
 				// pad out the gap between tokens with spaces
 				while (pos > endPos) {
@@ -656,9 +616,8 @@ namespace calc::expr {
 				case ' ': case '\t': case '\v': case '\r': case '\n':
 					goto GET_NEXT_LEXEME; //< skip whitespace characters
 				case '.':
-					if (nextCharIs(str::stdpred::isdigit)) {
+					if (nextCharIs(str::stdpred::isdigit))
 						goto PARSE_NUMBER;
-					}
 					else return{ LexemeType::Period, pos, c };
 				case ',':
 					return{ LexemeType::Comma, pos, c };
@@ -736,6 +695,32 @@ namespace calc::expr {
 			}
 		};
 
+		/**
+		 * @brief				Returns the sequence resulting from applying the specified selector to the specified source sequence.
+		 * @tparam TSource	  - The type of item in the source sequence.
+		 * @tparam TResult	  - The type of item in the result sequence.
+		 * @param source	  - The source sequence to apply the selector to.
+		 * @param selector	  - A transformation function to apply to each item.
+		 * @returns				The items returned by the selector, in the same order as the source items.
+		 */
+		template<typename TResult, typename TSource, var::function<TResult, TSource> TSelector>
+		constexpr std::vector<TResult> select(std::vector<TSource> const& source, const TSelector& selector)
+		{
+			std::vector<TResult> results;
+			results.reserve(source.size());
+
+			for (const auto& item : source) {
+				results.emplace_back(selector($fwd(item)));
+			}
+
+			return results;
+		}
+		template<typename TSource>
+		constexpr auto select(std::vector<TSource> const& source, const auto& selector)
+		{
+			return select<std::invoke_result_t<decltype(selector), TSource>>(source, selector);
+		}
+
 		/// @brief	Primitive tokenizer that converts lexemes into primitive tokens.
 		class primitive_tokenizer {
 			using iterator_t = typename std::vector<lexeme>::iterator;
@@ -765,72 +750,204 @@ namespace calc::expr {
 				return !at_end() && std::distance(current, end) >= 1;
 			}
 
-			bool moveToNext()
-			{
-				if (current == end) return false;
-				++current;
-				return true;
-			}
-			bool moveToPrev()
-			{
-				if (current == begin) return false;
-				--current;
-				return true;
-			}
-
-			/// @brief	Gets the current lexeme without moving the iterator.
-			lexeme getCurrent() const
-			{
-				return *current;
-			}
-
-			lexeme peekNextLexeme() const
-			{
-				return *(current + 1);
-			}
-			lexeme getNextLexeme()
-			{
-				return *++current;
-			}
-
-			bool nextLexemeIs(const std::function<bool(lexeme)>& predicate) const
-			{
-				return hasNext() && predicate(peekNextLexeme());
-			}
-			bool nextLexemeIs(const LexemeType type) const
-			{
-				return hasNext() && peekNextLexeme().type == type;
-			}
-
-			std::vector<lexeme> peekWhile(const std::function<bool(lexeme)>& predicate, const size_t reserve_size = 8) const
+			std::vector<lexeme> getRange(const_iterator_t const& begin, const_iterator_t const& end)
 			{
 				std::vector<lexeme> vec;
-				vec.reserve(reserve_size);
+				vec.reserve(std::distance(begin, end));
 
-				for (auto it{ current }; hasNext(); ++it) {
-					if (!predicate(*it))
-						break;
-
+				for (auto it{ begin }; it != end; ++it) {
 					vec.emplace_back(*it);
 				}
 
-				vec.shrink_to_fit();
-				return vec;
+				return std::move(vec);
 			}
-			std::vector<lexeme> getWhile(const std::function<bool(lexeme)>& predicate, const size_t reserve_size = 8)
+
+			std::vector<lexeme> getBrackets(const_iterator_t const& start, const LexemeType openBracketType, const LexemeType closeBracketType)
 			{
 				std::vector<lexeme> vec;
-				vec.reserve(reserve_size);
+				vec.reserve(std::distance(start, end));
 
-				for (; hasNext(); ++current) {
-					if (!predicate(*current))
-						break;
+				size_t depth{ 0 };
 
-					vec.emplace_back(*current);
+				for (auto it{ start }; it != end; ++it) {
+					if (it->type == openBracketType) {
+						++depth;
+					}
+					else if (it->type == closeBracketType) {
+						--depth;
+					}
+					vec.emplace_back(*it);
+
+					if (depth == 0) break;
 				}
 
 				vec.shrink_to_fit();
 				return vec;
+			}
+
+			const_iterator_t findEndBracket(const_iterator_t const& start, const LexemeType openBracketType, const LexemeType closeBracketType) const
+			{
+				size_t depth{ 0 };
+
+				for (auto it{ start }; it != end; ++it) {
+					if (it->type == openBracketType) {
+						++depth;
+					}
+					else if (it->type == closeBracketType) {
+						if (--depth == 0)
+							return it;
+					}
+				}
+
+				return end;
+			}
+
+			/**
+			 * @brief							Finds the first lexeme that has a gap between it and the previous one.
+			 * @param start					  - The position to start searching at.
+			 * @param returnPreviousInstead	  - When true, returns the lexeme before the gap instead of the one after it.
+			 * @returns							An iterator to the target lexeme when successful; otherwise, the end iterator.
+			 */
+			[[nodiscard]] const_iterator_t findFirstNonAdjacent(const_iterator_t const& start, const bool returnPreviousInstead = false) const
+			{
+				// short circuit if we're at the end
+				if (start == end) return start;
+
+				// cache the starting iterator
+				const_iterator_t prev{ start };
+
+				// begin looping from the next item
+				for (auto it{ start + 1 }; it != end; ++it) {
+					// check if not adjacent to previous
+					if (!it->isAdjacentTo(*prev))
+						return returnPreviousInstead ? prev : it;
+					// otherwise, continue
+					prev = it;
+				}
+
+				// nothing found
+				return end;
+			}
+			/**
+			 * @brief					Finds the first lexeme that doesn't have one of the specified types.
+			 * @param start			  - The position to start searching at.
+			 * @param ...lexemeTypes  - At least one lexeme type
+			 * @returns					An iterator to the target lexeme when successful; otherwise, the end iterator.
+			 */
+			template<std::same_as<LexemeType>... Ts> requires (var::at_least_one<Ts...>)
+				[[nodiscard]] const_iterator_t findFirstNotOfType(const_iterator_t const& start, Ts const&... lexemeTypes) const
+			{
+				// begin looping at the specified start
+				for (auto it{ start }; it != end; ++it) {
+					if (var::variadic_or(it->type == lexemeTypes...))
+						continue;
+					// else this lexeme is not of a specified type
+					return it;
+				}
+				// nothing found
+				return end;
+			}
+			template<std::same_as<LexemeType>... Ts> requires (var::at_least_one<Ts...>)
+				[[nodiscard]] const_iterator_t findFirstNonAdjacentOrNotOfType(const_iterator_t const& start, Ts const&... lexemeTypes) const
+			{
+				// short circuit if starting at the end
+				if (start == end) return start;
+
+				// cache the starting iterator
+				const_iterator_t prev{ start };
+
+				// begin looping from the next item
+				for (auto it{ start + 1 }; it != end; ++it) {
+					// check if this lexeme's type wasn't specified, or if it isn't adjacent to previous
+					if (!var::variadic_or(it->type == lexemeTypes...) || !it->isAdjacentTo(*prev)) {
+						return it;
+					}
+					// otherwise, continue
+					prev = it;
+				}
+
+				// nothing found
+				return end;
+			}
+
+			std::vector<primitive> getNextPrimitiveFrom(const_iterator_t& iterator)
+			{
+				// TODO:
+				//   Replace FunctionParams with FunctionParamsOpen/Close, and add a goto
+				//    statement up here to allow tokenizing inside function parameter brackets.
+
+
+				const auto lex{ *iterator };
+
+				switch (lex.type) {
+				case LexemeType::Operator: // resolve operator:
+					switch (lex.text.front()) {
+					case '+':
+						return{ { PrimitiveTokenType::Add, lex } };
+					case '-':
+						return{ { PrimitiveTokenType::Subtract, lex } };
+					case '*':
+						return{ { PrimitiveTokenType::Multiply, lex } };
+					case '/':
+						return{ { PrimitiveTokenType::Divide, lex } };
+					case '%':
+						return{ { PrimitiveTokenType::Modulo, lex } };
+					case '!':
+						return{ { PrimitiveTokenType::Factorial, lex } };
+					case '|':
+						return{ { PrimitiveTokenType::BitOR, lex } };
+					case '&':
+						return{ { PrimitiveTokenType::BitAND, lex } };
+					case '^':
+						return{ { PrimitiveTokenType::BitXOR, lex } };
+					case '~':
+						return{ { PrimitiveTokenType::BitNOT, lex } };
+					default:
+						throw make_exception("primitive_tokenizer::getNextPrimitive():  No implementation available for operator type \"", lex.text, '\"');
+					}
+				case LexemeType::BinaryNumber:
+					return{ { PrimitiveTokenType::BinaryNumber, lex } };
+				case LexemeType::OctalNumber:
+					return{ { PrimitiveTokenType::OctalNumber, lex } };
+				case LexemeType::HexNumber:
+					return{ { PrimitiveTokenType::HexNumber, lex } };
+				case LexemeType::IntNumber:
+					return{ { PrimitiveTokenType::IntNumber, lex } };
+				case LexemeType::RealNumber:
+					return{ { PrimitiveTokenType::RealNumber, lex } };
+				case LexemeType::Alpha:
+				{ // function or variable
+					if (const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha) };
+						nextNonAlpha != end && nextNonAlpha->type == LexemeType::ParenthesisOpen) {
+						// is a function
+						std::vector<primitive> functionSegments{
+							combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
+						};
+						functionSegments.reserve(2);
+
+						const auto params{ getBrackets(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
+						functionSegments.emplace_back(combine_tokens(PrimitiveTokenType::FunctionParams, params));
+						iterator = nextNonAlpha + params.size() - 1; //< subtract 1 to avoid eating next lexeme when caller increments current
+
+						return functionSegments;
+					}
+					else {
+						// is a variable
+						std::vector<primitive> variables;
+						variables.reserve(std::distance(iterator, nextNonAlpha));
+
+						for (; current != nextNonAlpha; ++current) {
+							variables.emplace_back(primitive{ PrimitiveTokenType::Variable, *current });
+						}
+						// no need to shrink since the returned vector is temporary
+						return std::move(variables);
+					}
+					break;
+				}
+				default:
+					break;
+				}
+				return{ { PrimitiveTokenType::Unknown, lex } };
 			}
 
 		public:
@@ -845,93 +962,8 @@ namespace calc::expr {
 				this->lexemes.erase(std::remove_if(this->lexemes.begin(), this->lexemes.end(), [](auto&& lex) { return lex.type == LexemeType::_EOF; }), this->lexemes.end());
 			}
 
-			primitive getNextPrimitive()
-			{
-				const auto lex{ getNextLexeme() };
-
-				switch (lex.type) {
-				case LexemeType::Operator:
-					switch (lex.text.front()) {
-					case '+':
-						return{ PrimitiveTokenType::Add, lex };
-					case '-':
-						return{ PrimitiveTokenType::Subtract, lex };
-					case '*':
-						return{ PrimitiveTokenType::Multiply, lex };
-					case '/':
-						return{ PrimitiveTokenType::Divide, lex };
-					case '%':
-						return{ PrimitiveTokenType::Modulo, lex };
-					case '!':
-						return{ PrimitiveTokenType::Factorial, lex };
-					case '|':
-						return{ PrimitiveTokenType::BitOR, lex };
-					case '&':
-						return{ PrimitiveTokenType::BitAND, lex };
-					case '^':
-						return{ PrimitiveTokenType::BitXOR, lex };
-					case '~':
-						return{ PrimitiveTokenType::BitNOT, lex };
-					default:
-						throw make_exception("primitive_tokenizer::getNextPrimitive():  No implementation available for operator type \"", lex.text, '\"');
-					}
-					break;
-				case LexemeType::BinaryNumber:
-					return{ PrimitiveTokenType::BinaryNumber, lex };
-				case LexemeType::OctalNumber:
-					return{ PrimitiveTokenType::OctalNumber, lex };
-				case LexemeType::HexNumber:
-					return{ PrimitiveTokenType::HexNumber, lex };
-				case LexemeType::IntNumber:
-					return{ PrimitiveTokenType::IntNumber, lex };
-				case LexemeType::RealNumber:
-					return{ PrimitiveTokenType::RealNumber, lex };
-				case LexemeType::Alpha:
-					// peek ahead
-					std::string functionName{};
-					std::vector<lexeme> vec;
-					vec.reserve(std::distance(current, end));
-
-					size_t bracketDepth{ 0 };
-					auto it{ current };
-					for (; it != end; ++it) {
-						switch (it->type) {
-						case LexemeType::ParenthesisOpen:
-							if (!isFunctionName(functionName))
-								goto BREAK; //< this isn't a function
-							++bracketDepth;
-							break;
-						case LexemeType::ParenthesisClose:
-							// reached end of function
-							if (--bracketDepth == 0) {
-								current = it;
-								return combine_tokens(PrimitiveTokenType::Function, vec);
-							}
-							break;
-						case LexemeType::Alpha:
-							if (!bracketDepth) // func bracket not reached; append to functionName
-								functionName += it->text;
-							break;
-						default:
-							if (!bracketDepth) // func bracket not reached & this lexeme isn't valid; break
-								goto BREAK;
-							break;
-						}
-
-						vec.emplace_back(*it);
-					}
-					// TODO: Improve this exception v:
-					if (bracketDepth != 0)
-						throw make_exception("Tokenization Error:  Expected an ending bracket for ");
-					// TODO: Improve this exception ^:
-
-				BREAK:
-					break;
-				}
-			}
-
 			/// @brief	Tokenizes the lexeme buffer into a vector of primitive tokens.
-			std::vector<primitive> tokenize(bool resetToBeginning = false)
+			std::vector<primitive> tokenize()
 			{
 				std::vector<primitive> vec{};
 				if (lexemes.empty()) return vec; //< if there aren't any lexemes, short circuit
@@ -939,13 +971,10 @@ namespace calc::expr {
 				// reserve enough space for 1:1 token count. Allow reallocations on exceeding this limit tho
 				vec.reserve(lexemes.size());
 
-				// move the iterator to the beginning if specified
-				if (resetToBeginning)
-					current = begin;
-
 				// tokenize all of the lexemes into primitives
-				while (hasNext()) {
-					vec.emplace_back(getNextPrimitive());
+				for (; current != end; ++current) {
+					const auto tokens{ getNextPrimitiveFrom(current) };
+					vec.insert(vec.end(), tokens.begin(), tokens.end());
 				}
 
 				// remove unused space & return

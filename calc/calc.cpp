@@ -65,9 +65,11 @@ static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 };
 static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveTypeNames{
 	{ calc::expr::PrimitiveTokenType::Unknown, "Unknown" },
-	{ calc::expr::PrimitiveTokenType::VariableName, "VariableName" },
+	{ calc::expr::PrimitiveTokenType::Variable, "Variable" },
 	{ calc::expr::PrimitiveTokenType::Expression, "Expression" },
-	{ calc::expr::PrimitiveTokenType::Function, "Function" },
+	{ calc::expr::PrimitiveTokenType::FunctionName, "FunctionName" },
+	{ calc::expr::PrimitiveTokenType::FunctionParams, "FunctionParams" },
+	{ calc::expr::PrimitiveTokenType::FunctionBody, "FunctionBody" },
 	{ calc::expr::PrimitiveTokenType::IntNumber, "IntNumber" },
 	{ calc::expr::PrimitiveTokenType::RealNumber, "RealNumber" },
 	{ calc::expr::PrimitiveTokenType::BinaryNumber, "BinaryNumber" },
@@ -99,12 +101,22 @@ int main(const int argc, char** argv)
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
 
 
+		static_assert(var::enumerable<std::string>, "ASSERTION FAILURE");
+
+		
+		static_assert(var::enumerable_of<std::vector<char>, char>, "ASSERTION FAILURE");
+		static_assert(var::enumerable_of<const std::vector<char>, const char>, "ASSERTION FAILURE");
+		static_assert(var::enumerable_of<const std::vector<char>, char>, "ASSERTION FAILURE");
+		static_assert(var::enumerable_of<std::vector<char>, const char>, "ASSERTION FAILURE");
+		//static_assert(var::enumerable_of<std::vector<std::stringstream>, char>, "ASSERTION FAILURE");
+
+
 		// v REMOVE WHEN DONE v
 
 		using namespace calc::expr;
 
 		//const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
-		const auto expr{ "((-2^5 * 3 - 7) / (4 % 3) + (sqrt(25) + 4 * 7) * (sin(60) + cos(-45))) - (log(100) + 8 / (tan(30) * exp(2)))" };
+		const auto expr{ "((-2^5 * 3 - 7) / (4a % 3) + (a - sqrt(25, 50(asdf())) + 4 * 7) * (sin(60) + cos(-45))) - (log(100) + 8 / (tan(30) * exp(2)))" };
 		//                01234567891111111111222222222233333333
 		//                          0123456789012345678901234567
 		const auto lexemes = tkn::lexer{ expr }.get_lexemes(false);
@@ -182,7 +194,7 @@ int main(const int argc, char** argv)
 
 		// if there is piped input move it into the expression buffer
 		if (pipedInput) {
-			exprbuf << std::cin.rdbuf();
+			exprbuf << std::cin.rdbuf() << ' ';
 		}
 
 		for (const auto& param : args.getv_all<opt3::Parameter>()) {
