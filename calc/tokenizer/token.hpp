@@ -10,13 +10,13 @@
 namespace calc::expr::tkn {
 
 	/// @brief	Requires type T to be a valid token type enum.
-	template<typename T> concept is_token_type = var::any_same<T, LexemeType, PrimitiveTokenType, ComplexTokenType>;
+	template<typename T> concept token_type = var::any_same<T, LexemeType, PrimitiveTokenType, ComplexTokenType>;
 
 	/**
 	 * @brief				A basic token object with the specified token type.
 	 * @tparam TTokenType -	The type of token contained by this instance.
 	 */
-	template<is_token_type TTokenType>
+	template<token_type TTokenType>
 	struct basic_token {
 		using type_t = TTokenType;
 
@@ -44,7 +44,7 @@ namespace calc::expr::tkn {
 		 * @param text		  - The text that the token represents.
 		 */
 		constexpr basic_token(const type_t& type, const auto position, const char text) : type{ type }, pos{ static_cast<std::streamoff>(position) }, text{ text } {}
-		template<is_token_type T>
+		template<token_type T>
 		constexpr basic_token(const type_t& type, basic_token<T> const& otherToken) : type{ type }, pos{ otherToken.pos }, text{ otherToken.text } {}
 
 		/// @brief	Gets the (exclusive) ending position of this token.

@@ -8,7 +8,7 @@
 
 
 namespace calc::expr::tkn {
-	/// @brief	Primitive tokenizer that converts lexemes into primitive tokens.
+	/// @brief	Tokenizer that converts lexemes into primitive tokens.
 	class primitive_tokenizer {
 		using iterator_t = typename std::vector<lexeme>::iterator;
 		using const_iterator_t = typename std::vector<lexeme>::const_iterator;

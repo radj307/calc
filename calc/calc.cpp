@@ -37,7 +37,7 @@ struct print_help {
 					<< "  - Octal numbers start with \'0\'.    eg. 056" << '\n'
 					<< "  - Numbers without these prefixes are assumed to be Decimal." << '\n'
 					<< "  - Numbers cannot have spaces. If you would like to space out large numbers you can use underscores" << '\n'
-					<< "  to connect digits.    eg. 132_678 will be treated as 132678" << '\n'
+					<< "     to connect digits.    eg. 132_678 will be treated as 132678" << '\n'
 					<< '\n'
 					<< "VARIABLES:\n"
 					<< "  - Variables are a single character only." << '\n'
@@ -47,12 +47,12 @@ struct print_help {
 					<< "FUNCTIONS:\n"
 					<< "  - Functions can be any number of connected characters followed by parentheses containing the input." << '\n'
 					<< "  - There cannot be a space between the function name and the parentheses." << '\n'
-					<< "	Valid: sqrt(25)		Not Valid: sqrt (25)" << '\n'
+					<< "	 Valid: sqrt(25)		Not Valid: sqrt (25)" << '\n'
 					<< '\n'
 					;
 			}
 			else {
-				return os 
+				return os
 					<< "Help Subject " << h._helpArg.value() << " does not exist." << '\n'
 					<< "USAGE: \n"
 					<< "  -h, --help [SUBJECT]" << '\n'
@@ -62,22 +62,21 @@ struct print_help {
 					;
 			}
 		}
-		else {
-			return os
-				<< "calc " /* << calc_VERSION_EXTENDED */ << ' ' /* << calc_COPYRIGHT */ << '\n'
-				<< "  Commandline calculator.\n"
-				<< '\n'
-				<< "USAGE:\n"
-				<< "  " << h._executableName << " [OPTIONS] [--] <EXPRESSION>" << '\n'
-				<< '\n'
-				<< "  NOTE: Negative numbers are interpreted as flags because they start with a dash. To prevent this," << '\n'
-				<< "         specify \"--\" before it on the commandline to disable parsing for all args that follow." << '\n'
-				<< '\n'
-				<< "OPTIONS:\n"
-				<< "  -h, --help [SUBJECT]     Shows this help display, or details about the specified subject, then exits." << '\n'
-				<< "  -v, --version            Prints the current version number, then exits." << '\n'
-				;
-		}
+		return os
+			<< "calc " /* << calc_VERSION_EXTENDED */ << ' ' /* << calc_COPYRIGHT */ << '\n'
+			<< "  Commandline calculator.\n"
+			<< '\n'
+			<< "USAGE:\n"
+			<< "  " << h._executableName << " [OPTIONS] [--] <EXPRESSION>" << '\n'
+			<< '\n'
+			<< "  NOTE: Negative numbers are interpreted as flags because they start with a dash. To prevent this," << '\n'
+			<< "         specify \"--\" before it on the commandline to disable parsing for all args that follow." << '\n'
+			<< '\n'
+			<< "OPTIONS:\n"
+			<< "  -h, --help [SUBJECT]     Shows this help display, or details about the specified subject, then exits." << '\n'
+			<< "  -v, --version            Prints the current version number, then exits." << '\n'
+			<< '\n'
+			;
 	}
 };
 $DefineExcept(print_help_exception);
