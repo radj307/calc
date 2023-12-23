@@ -1,4 +1,6 @@
-﻿#include "tokenizer/lexer.hpp"
+﻿#include "TreeNode.hpp"
+
+#include "tokenizer/lexer.hpp"
 #include "tokenizer/primitive_tokenizer.hpp"
 
 // libcalc
@@ -17,7 +19,7 @@ struct print_help {
 	const std::string _executableName;
 	const std::optional<std::string> _helpArg;
 
-	constexpr print_help(const std::string& executableName, const std::optional<std::string>& helpArg) : _executableName{ executableName }, _helpArg{ helpArg } {}
+	print_help(const std::string& executableName, const std::optional<std::string>& helpArg) : _executableName{ executableName }, _helpArg{ helpArg } {}
 
 	friend std::ostream& operator<<(std::ostream& os, const print_help& h)
 	{
@@ -79,7 +81,66 @@ struct print_help {
 			;
 	}
 };
-$DefineExcept(print_help_exception);
+
+template<typename Tr, typename... Ts>
+struct basic_operator {
+	using operation_t = std::function<Tr(Ts...)>;
+
+	constexpr basic_operator(const operation_t& func) : func{ func } {}
+
+	/// @brief	The function that performs the operation.
+	operation_t func;
+
+	/**
+	 * @brief			Evaluates the result of the operation with the specified arguments.
+	 * @param ...args -	The arguments of the operation, in order.
+	 * @returns			The result of the operation.
+	 */
+	Tr evaluate(Ts&&... args) const
+	{
+		return func(std::forward<Ts>(args)...);
+	}
+
+	/// @brief	Gets the result of the operation.
+	template<std::convertible_to<Ts>... Tu>
+	inline Tr operator()(Tu&&... args) const
+	{
+		return evaluate(std::forward<Tu>(args)...);
+	}
+};
+
+template<typename T, typename Returns = T>
+using unary_operator = basic_operator<Returns, T>;
+template<typename T1, typename T2 = T1, typename Returns = T1>
+using binary_operator = basic_operator<Returns, T1, T2>;
+
+static struct {
+	using primitive = calc::expr::tkn::primitive;
+	using primitive_type = calc::expr::PrimitiveTokenType;
+	using complex = calc::expr::tkn::complex;
+	using complex_type = calc::expr::ComplexTokenType;
+
+	std::map<complex, std::vector<primitive>> sequenceMap{
+		//{ { complex_type::, 0, "" }}
+	};
+
+} evaluator;
+
+struct expression {
+	std::list<calc::expr::tkn::primitive> tokens;
+
+	expression evaluate() const
+	{
+
+	}
+
+	std::optional<calc::Number> evaluate_result() const
+	{
+
+		// cannot evaluate expression
+		return std::nullopt;
+	}
+};
 
 static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 	{ calc::expr::LexemeType::Unknown, "Unknown" },
@@ -138,6 +199,38 @@ static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveType
 
 int main(const int argc, char** argv)
 {
+	std::cout << combine_tokens(calc::expr::PrimitiveTokenType::Unknown, std::vector<calc::expr::tkn::lexeme>{
+		{ calc::expr::LexemeType::Alpha, 0, "start" },
+		{ calc::expr::LexemeType::Alpha, 10, "end" },
+		{ calc::expr::LexemeType::Alpha, 15, "LOL" },
+	}) << '\n';
+
+	std::cout << "|    ^    |    ^    |" << '\n';
+	std::cout << "0    5    10   15   20" << '\n';
+
+	//TreeNode<std::string> root{ "root" };
+
+	////root.addChildren({ "asdf"});
+	//root.addChildren({
+	//	{ "Node1", { { "SubNode1", { { "SubNode1", { { "SubSubNode", {
+	//		{ "SubSubSubNode", {
+	//			{ "SubSubSubSubNode", { { "A" }, { "B", { { "SubNode1" } } } } },
+	//				 { "sn", { { "A" }, { "B", { { "SubNode1" } } } } },
+	//				 } }
+	//				 } },
+	//				 { "SubSubNode", {
+	//					 { "SubSubSubNode", {
+	//						 { "SubSubSubSubNode", { { "A" }, { "B", { { "SubNode1" } } } } },
+	//				 { "sn", { { "A" }, { "B", { { "SubNode1" } } } } },
+	//				 } }
+	//				 } }, } } } }, { "SubNode2" }, { "SubNode3" } } },
+	//				 { "Node1", { { "SubNode1", { { "SubNode1", { { "SubSubNode", { { "SubSubSubNode", { { "SubSubSubSubNode", { { "A" }, { "B" } } } } } } } } }, { "SubNode2" }, { "SubNode3" } } }, { "SubNode2" }, { "SubNode3" } } },
+	//				 { "Node2" },
+	//				 { "Node3", { { "SubNode1" }, { "SubNode2" }, { "SubNode3", { { "SubNode1" }, { "SubNode2", { { "A" }, { "B" } } }, { "SubNode3" } } } } },
+	//				 });
+
+	//std::cout << print_tree<TreeNode<std::string>, 3>(root, +[](TreeNode<std::string>&& node) { return node.getChildren(); });
+
 	try {
 		opt3::ArgManager args{ argc, argv,
 			// argument defs:
@@ -145,16 +238,6 @@ int main(const int argc, char** argv)
 		};
 
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
-
-
-		static_assert(var::enumerable<std::string>, "ASSERTION FAILURE");
-
-
-		static_assert(var::enumerable_of<std::vector<char>, char>, "ASSERTION FAILURE");
-		static_assert(var::enumerable_of<const std::vector<char>, const char>, "ASSERTION FAILURE");
-		static_assert(var::enumerable_of<const std::vector<char>, char>, "ASSERTION FAILURE");
-		static_assert(var::enumerable_of<std::vector<char>, const char>, "ASSERTION FAILURE");
-		//static_assert(var::enumerable_of<std::vector<std::stringstream>, char>, "ASSERTION FAILURE");
 
 
 		// v REMOVE WHEN DONE v
