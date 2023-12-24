@@ -1,4 +1,5 @@
-﻿#include "TreeNode.hpp"
+﻿#include "tokenizer/complex-token.hpp"
+#include "TreeNode.hpp"
 
 #include "tokenizer/lexer.hpp"
 #include "tokenizer/primitive_tokenizer.hpp"
@@ -12,6 +13,7 @@
 #include <opt3.hpp>					//< for ArgManager
 #include <envpath.hpp>				//< for PATH
 #include <hasPendingDataSTDIN.h>	//< for checking piped input
+#include <print_tree.hpp>			//< for print_tree
 
 color::sync csync{};
 
@@ -109,22 +111,29 @@ struct basic_operator {
 	}
 };
 
+template<typename T> concept operator_type = var::derived_from_templated<T, basic_operator>;
+
 template<typename T, typename Returns = T>
 using unary_operator = basic_operator<Returns, T>;
 template<typename T1, typename T2 = T1, typename Returns = T1>
 using binary_operator = basic_operator<Returns, T1, T2>;
 
+using unary_op = unary_operator<calc::Number>;
+using binary_op = binary_operator<calc::Number>;
+
 static struct {
 	using primitive = calc::expr::tkn::primitive;
 	using primitive_type = calc::expr::PrimitiveTokenType;
-	using complex = calc::expr::tkn::complex;
+	//using complex = calc::expr::tkn::complex;
 	using complex_type = calc::expr::ComplexTokenType;
 
-	std::map<complex, std::vector<primitive>> sequenceMap{
-		//{ { complex_type::, 0, "" }}
-	};
+	//std::map<complex, std::vector<primitive>> sequenceMap{
+	//	//{ { complex_type::, 0, "" }}
+	//};
 
 } evaluator;
+
+
 
 struct expression {
 	std::list<calc::expr::tkn::primitive> tokens;
@@ -197,16 +206,12 @@ static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveType
 	{ calc::expr::PrimitiveTokenType::Equal, "Equal" },
 };
 
+
 int main(const int argc, char** argv)
 {
-	std::cout << combine_tokens(calc::expr::PrimitiveTokenType::Unknown, std::vector<calc::expr::tkn::lexeme>{
-		{ calc::expr::LexemeType::Alpha, 0, "start" },
-		{ calc::expr::LexemeType::Alpha, 10, "end" },
-		{ calc::expr::LexemeType::Alpha, 15, "LOL" },
-	}) << '\n';
+	using namespace calc;
 
-	std::cout << "|    ^    |    ^    |" << '\n';
-	std::cout << "0    5    10   15   20" << '\n';
+	expr::tkn::complex complexToken{ expr::ComplexTokenType::Unknown, std::vector<expr::tkn::primitive>{ expr::tkn::primitive{ expr::PrimitiveTokenType::BinaryNumber, 0, "0b0110" } } };
 
 	//TreeNode<std::string> root{ "root" };
 
@@ -229,7 +234,7 @@ int main(const int argc, char** argv)
 	//				 { "Node3", { { "SubNode1" }, { "SubNode2" }, { "SubNode3", { { "SubNode1" }, { "SubNode2", { { "A" }, { "B" } } }, { "SubNode3" } } } } },
 	//				 });
 
-	//std::cout << print_tree<TreeNode<std::string>, 3>(root, +[](TreeNode<std::string>&& node) { return node.getChildren(); });
+	//std::cout << print_tree<TreeNode<std::string>>(root, +[](TreeNode<std::string>&& node) { return node.children; });
 
 	try {
 		opt3::ArgManager args{ argc, argv,

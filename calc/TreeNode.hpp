@@ -54,7 +54,7 @@ namespace calc {
 	#pragma endregion begin/end
 
 		/// @brief	Gets the immediate child node that matches the specified predicate.
-		[[nodiscard]] std::optional<node_t> getChild(const std::function<bool(node_t)>& predicate) noexcept
+		[[nodiscard]] std::optional<node_t&> getChild(const std::function<bool(node_t)>& predicate) noexcept
 		{
 			if (const auto& it{ std::find_if(children.begin(), children.end(), predicate) }; it != children.end()) {
 				return *it;
@@ -70,8 +70,13 @@ namespace calc {
 			return std::nullopt;
 		}
 
-		/// @brief	Performs a depth-first search of the subtree for a node that matches the specified predicate.
-		[[nodiscard]] std::optional<node_t> getChildDepthFirst(const std::function<bool(node_t)>& predicate)
+	#pragma region getChildDepthFirst
+		/**
+		 * @brief				Searches the subtree depth-first using the specified node predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<node_t&> getChildDepthFirst(const std::function<bool(node_t)>& predicate)
 		{
 			std::stack<node_t> stack;
 			stack.push(*this);
@@ -89,8 +94,84 @@ namespace calc {
 			}
 			return std::nullopt;
 		}
-		/// @brief	Performs a breadth-first search of the subtree for a node that matches the specified predicate.
-		[[nodiscard]] std::optional<node_t> getChildBreadthFirst(const std::function<bool(node_t)>& predicate)
+		/**
+		 * @brief				Searches the subtree depth-first using the specified node predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A const reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<const node_t&> getChildDepthFirst(const std::function<bool(node_t)>& predicate) const
+		{
+			std::stack<node_t> stack;
+			stack.push(*this);
+
+			while (!stack.empty()) {
+				auto current{ stack.top() };
+				stack.pop();
+
+				if (predicate(current))
+					return current;
+
+				for (auto& it : current.children) {
+					stack.push(it);
+				}
+			}
+			return std::nullopt;
+		}
+		/**
+		 * @brief				Searches the subtree depth-first using the specified value predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<node_t&> getChildDepthFirst(const std::function<bool(T)>& predicate)
+		{
+			std::stack<node_t> stack;
+			stack.push(*this);
+
+			while (!stack.empty()) {
+				auto current{ stack.top() };
+				stack.pop();
+
+				if (predicate(current.value))
+					return current;
+
+				for (auto& it : current.children) {
+					stack.push(it);
+				}
+			}
+			return std::nullopt;
+		}
+		/**
+		 * @brief				Searches the subtree depth-first using the specified value predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A const reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<const node_t&> getChildDepthFirst(const std::function<bool(T)>& predicate) const
+		{
+			std::stack<node_t> stack;
+			stack.push(*this);
+
+			while (!stack.empty()) {
+				auto current{ stack.top() };
+				stack.pop();
+
+				if (predicate(current.value))
+					return current;
+
+				for (auto& it : current.children) {
+					stack.push(it);
+				}
+			}
+			return std::nullopt;
+		}
+	#pragma endregion getChildDepthFirst
+
+	#pragma region getChildBreadthFirst
+		/**
+		 * @brief				Searches the subtree breadth-first using the specified node predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<node_t&> getChildBreadthFirst(const std::function<bool(node_t)>& predicate)
 		{
 			std::queue<node_t> queue;
 			queue.push(*this);
@@ -108,6 +189,76 @@ namespace calc {
 			}
 			return std::nullopt;
 		}
+		/**
+		 * @brief				Searches the subtree breadth-first using the specified node predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A const reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<node_t> getChildBreadthFirst(const std::function<bool(node_t)>& predicate) const
+		{
+			std::queue<node_t> queue;
+			queue.push(*this);
+
+			while (!queue.empty()) {
+				auto current{ queue.front() };
+				queue.pop();
+
+				if (predicate(current))
+					return current;
+
+				for (auto& it : current.children) {
+					queue.push(it);
+				}
+			}
+			return std::nullopt;
+		}
+		/**
+		 * @brief				Searches the subtree breadth-first using the specified value predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<node_t&> getChildBreadthFirst(const std::function<bool(T)>& predicate)
+		{
+			std::queue<node_t> queue;
+			queue.push(*this);
+
+			while (!queue.empty()) {
+				auto current{ queue.front() };
+				queue.pop();
+
+				if (predicate(current.value))
+					return current;
+
+				for (auto& it : current.children) {
+					queue.push(it);
+				}
+			}
+			return std::nullopt;
+		}
+		/**
+		 * @brief				Searches the subtree breadth-first using the specified value predicate.
+		 * @param predicate	  -	A predicate for selecting the target node.
+		 * @returns				A const reference to the target node when found; otherwise, std::nullopt.
+		 */
+		[[nodiscard]] std::optional<node_t> getChildBreadthFirst(const std::function<bool(T)>& predicate) const
+		{
+			std::queue<node_t> queue;
+			queue.push(*this);
+
+			while (!queue.empty()) {
+				auto current{ queue.front() };
+				queue.pop();
+
+				if (predicate(current.value))
+					return current;
+
+				for (auto& it : current.children) {
+					queue.push(it);
+				}
+			}
+			return std::nullopt;
+		}
+	#pragma endregion getChildBreadthFirst
 
 		/// @brief	Adds the specified child node.
 		void addChild(node_t const& child)

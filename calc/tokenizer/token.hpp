@@ -18,7 +18,7 @@ namespace calc::expr::tkn {
 	 * @brief				A basic token object with the specified token type.
 	 * @tparam TTokenType -	The type of token contained by this instance.
 	 */
-	template<token_type TTokenType>
+	template<typename TTokenType>
 	struct basic_token {
 		using type_t = TTokenType;
 
@@ -135,6 +135,12 @@ namespace calc::expr::tkn {
 			return str::stringify("(Start Index: ", pos, ", End Index: ", getEndPos() - 1, " Text: \"", text, "\")");
 		}
 
+		template<typename Tr> requires (sizeof(Tr) == sizeof(type_t))
+		constexpr basic_token<Tr> generic_token() const
+		{
+			return{ static_cast<Tr>(type), pos, text };
+		}
+
 		/// @brief	Prints the token's text to the output stream.
 		friend std::ostream& operator<<(std::ostream& os, const basic_token<type_t>& tkn)
 		{
@@ -149,7 +155,7 @@ namespace calc::expr::tkn {
 	 * @tparam TSource		  -	The type of the tokens in the input vector.
 	 * @tparam TResult		  -	The type of the resulting merged token.
 	 * @param type			  -	The token type of the new merged token instance.
-	 * @param vec			  -	A vector of tokens to merge.
+	 * @param tokens		  -	A vector of tokens to merge.
 	 * @returns					A single merged token with the specified token type.
 	 */
 	template<var::derived_from_templated<basic_token> TSource, token_type TResultType, std::derived_from<basic_token<TResultType>> TResult = basic_token<TResultType>>
@@ -194,18 +200,18 @@ namespace calc::expr::tkn {
 		([&](const auto& tkn) {
 			const auto tknEndPos{ tkn.getEndPos() };
 
-			if (startPos == -1)
-				startPos = tkn.pos;
-			else {
-				if (prevEndPos < tkn.pos)
-					buf << indent(tkn.pos - prevEndPos);
-				else if (prevEndPos > tkn.pos)
-					throw make_exception("combine_tokens():  The specified tokens are in an invalid order!");
-				// else if equal, fallthrough (tokens are adjacent)
-			}
+		if (startPos == -1)
+			startPos = tkn.pos;
+		else {
+			if (prevEndPos < tkn.pos)
+				buf << indent(tkn.pos - prevEndPos);
+			else if (prevEndPos > tkn.pos)
+				throw make_exception("combine_tokens():  The specified tokens are in an invalid order!");
+			// else if equal, fallthrough (tokens are adjacent)
+		}
 
-			buf << tkn;
-			prevEndPos = tknEndPos;
+		buf << tkn;
+		prevEndPos = tknEndPos;
 		 }(tokens), ...);
 
 		return{ type, startPos, buf.str() };
@@ -216,17 +222,4 @@ namespace calc::expr::tkn {
 	using lexeme = basic_token<LexemeType>;
 	/// @brief	A primitive token, one step up from a lexeme but not a full token.
 	using primitive = basic_token<PrimitiveTokenType>;
-
-	/// @brief	A complex token, the most advanced kind of token subtype.
-	class complex : public basic_token<ComplexTokenType> {
-		using base_t = basic_token<ComplexTokenType>;
-		using type_t = typename base_t::type_t;
-
-		constexpr complex(const type_t& type, const std::vector<primitive>& primitives) : base_t(), primitives{ primitives } {}
-
-		/// @brief	A vector of the primitives that compose this complex token instance.
-		std::vector<primitive> primitives;
-
-
-	};
 }
