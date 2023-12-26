@@ -1,9 +1,11 @@
-﻿#include "tokenizer/complex-token.hpp"
-#include "TreeNode.hpp"
+﻿#include "version.h"
+#include "copyright.h"
 
 #include "tokenizer/lexer.hpp"
 #include "tokenizer/primitive_tokenizer.hpp"
+#include "tokenizer/expr_builder.hpp"
 
+#include "FunctionMap.hpp" //< move this to libcalc
 // libcalc
 #include <Number.hpp>
 
@@ -15,7 +17,9 @@
 #include <hasPendingDataSTDIN.h>	//< for checking piped input
 #include <print_tree.hpp>			//< for print_tree
 
-color::sync csync{};
+#include <list>
+
+#include "settings.h" //< for calc global settings
 
 struct print_help {
 	const std::string _executableName;
@@ -67,7 +71,7 @@ struct print_help {
 			}
 		}
 		return os
-			<< "calc " /* << calc_VERSION_EXTENDED */ << ' ' /* << calc_COPYRIGHT */ << '\n'
+			<< "calc " << calc_VERSION_EXTENDED << ' ' << calc_COPYRIGHT << '\n'
 			<< "  Commandline calculator.\n"
 			<< '\n'
 			<< "USAGE:\n"
@@ -80,76 +84,11 @@ struct print_help {
 			<< "  -h, --help [SUBJECT]     Shows this help display, or details about the specified subject, then exits." << '\n'
 			<< "  -v, --version            Prints the current version number, then exits." << '\n'
 			<< '\n'
+			<< "  -d, --debug              Shows verbose output to help with debugging an expression." << '\n'
 			;
 	}
 };
 
-template<typename Tr, typename... Ts>
-struct basic_operator {
-	using operation_t = std::function<Tr(Ts...)>;
-
-	constexpr basic_operator(const operation_t& func) : func{ func } {}
-
-	/// @brief	The function that performs the operation.
-	operation_t func;
-
-	/**
-	 * @brief			Evaluates the result of the operation with the specified arguments.
-	 * @param ...args -	The arguments of the operation, in order.
-	 * @returns			The result of the operation.
-	 */
-	Tr evaluate(Ts&&... args) const
-	{
-		return func(std::forward<Ts>(args)...);
-	}
-
-	/// @brief	Gets the result of the operation.
-	template<std::convertible_to<Ts>... Tu>
-	inline Tr operator()(Tu&&... args) const
-	{
-		return evaluate(std::forward<Tu>(args)...);
-	}
-};
-
-template<typename T> concept operator_type = var::derived_from_templated<T, basic_operator>;
-
-template<typename T, typename Returns = T>
-using unary_operator = basic_operator<Returns, T>;
-template<typename T1, typename T2 = T1, typename Returns = T1>
-using binary_operator = basic_operator<Returns, T1, T2>;
-
-using unary_op = unary_operator<calc::Number>;
-using binary_op = binary_operator<calc::Number>;
-
-static struct {
-	using primitive = calc::expr::tkn::primitive;
-	using primitive_type = calc::expr::PrimitiveTokenType;
-	//using complex = calc::expr::tkn::complex;
-	using complex_type = calc::expr::ComplexTokenType;
-
-	//std::map<complex, std::vector<primitive>> sequenceMap{
-	//	//{ { complex_type::, 0, "" }}
-	//};
-
-} evaluator;
-
-
-
-struct expression {
-	std::list<calc::expr::tkn::primitive> tokens;
-
-	expression evaluate() const
-	{
-
-	}
-
-	std::optional<calc::Number> evaluate_result() const
-	{
-
-		// cannot evaluate expression
-		return std::nullopt;
-	}
-};
 
 static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
 	{ calc::expr::LexemeType::Unknown, "Unknown" },
@@ -206,35 +145,32 @@ static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveType
 	{ calc::expr::PrimitiveTokenType::Equal, "Equal" },
 };
 
-
 int main(const int argc, char** argv)
 {
 	using namespace calc;
 
-	expr::tkn::complex complexToken{ expr::ComplexTokenType::Unknown, std::vector<expr::tkn::primitive>{ expr::tkn::primitive{ expr::PrimitiveTokenType::BinaryNumber, 0, "0b0110" } } };
+	//std::vector<std::any> args{ 0.0l, 0.0l };
 
-	//TreeNode<std::string> root{ "root" };
+	//// this works:
+	//auto res = std::apply(std::powl, unwrap<long double, long double>(args, std::index_sequence_for<long double, long double>()));
 
-	////root.addChildren({ "asdf"});
-	//root.addChildren({
-	//	{ "Node1", { { "SubNode1", { { "SubNode1", { { "SubSubNode", {
-	//		{ "SubSubSubNode", {
-	//			{ "SubSubSubSubNode", { { "A" }, { "B", { { "SubNode1" } } } } },
-	//				 { "sn", { { "A" }, { "B", { { "SubNode1" } } } } },
-	//				 } }
-	//				 } },
-	//				 { "SubSubNode", {
-	//					 { "SubSubSubNode", {
-	//						 { "SubSubSubSubNode", { { "A" }, { "B", { { "SubNode1" } } } } },
-	//				 { "sn", { { "A" }, { "B", { { "SubNode1" } } } } },
-	//				 } }
-	//				 } }, } } } }, { "SubNode2" }, { "SubNode3" } } },
-	//				 { "Node1", { { "SubNode1", { { "SubNode1", { { "SubSubNode", { { "SubSubSubNode", { { "SubSubSubSubNode", { { "A" }, { "B" } } } } } } } } }, { "SubNode2" }, { "SubNode3" } } }, { "SubNode2" }, { "SubNode3" } } },
-	//				 { "Node2" },
-	//				 { "Node3", { { "SubNode1" }, { "SubNode2" }, { "SubNode3", { { "SubNode1" }, { "SubNode2", { { "A" }, { "B" } } }, { "SubNode3" } } } } },
-	//				 });
+	//// this works:
+	//auto fn = wrap_call<long double, long double>(std::powl);
 
-	//std::cout << print_tree<TreeNode<std::string>>(root, +[](TreeNode<std::string>&& node) { return node.children; });
+	//FunctionMap fnmap1{};
+	//const auto res1 = std::any_cast<long double>(fnmap1.invoke("pow", 0.0l, 0.0l));
+
+
+
+
+	std::string _expr{ "5 + ( (5 + 7 * 23) / (2 + sqrt(9)) ) / 2" };
+	auto _tokens{ expr::tkn::primitive_tokenizer{ expr::tkn::lexer{ _expr }.get_lexemes() }.tokenize() };
+
+
+	std::cout
+		<< _expr << std::endl
+		<< print_tree<TreeNode<expr::tkn::vtoken>>(expr::tkn::expr_builder{ _tokens }.build(), [](auto&& node) -> std::vector<TreeNode<expr::tkn::vtoken>> { return node.children; }) << std::endl;
+
 
 	try {
 		opt3::ArgManager args{ argc, argv,
@@ -244,83 +180,12 @@ int main(const int argc, char** argv)
 
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
 
-
-		// v REMOVE WHEN DONE v
-
-		using namespace calc::expr;
-
-		//const auto expr{ "(5 / 0.56, ..5_015 )(0b1110 * 0xFF0 *a 8 * 0ib ${ABCD})" };
-		const auto expr{ "(09(-2^5 * 3 - 7) / (4a % 3) + (a - sqrt(25, 50 asdf())) + 4 * 7) * (sin(60) + cos(-45)) - (log(100) + 8 / (tan(30) * exp(2)))" };
-		//const auto expr{ "(f() f(1) 2)" };
-		//                01234567891111111111222222222233333333
-		//                          0123456789012345678901234567
-		const auto lexemes = tkn::lexer{ expr }.get_lexemes(false);
-		const auto primitives = tkn::primitive_tokenizer{ lexemes }.tokenize();
-
-		std::cout << "Input Expression: " << '\"' << expr << '\"' << '\n' << '\n';
-
-		const size_t COLSZ_0{ 4 };
-		const size_t COLSZ_1{ 12 };
-		const size_t COLSZ_2{ 8 };
-		const size_t COLSZ_3{ 20 };
-
-		// print output table
-		std::cout
-			<< "Idx" << indent(COLSZ_0, 3) << "| "
-			<< "Pos" << indent(COLSZ_1, 3) << "| "
-			<< "Len" << indent(COLSZ_2, 3) << "| "
-			<< "Type" << indent(COLSZ_3, 4) << "| "
-			<< "Value" << '\n'
-			<< indent(COLSZ_0, 0, '-') << '|'
-			<< indent(COLSZ_1 + 1, 0, '-') << '|'
-			<< indent(COLSZ_2 + 1, 0, '-') << '|'
-			<< indent(COLSZ_3 + 1, 0, '-') << '|'
-			<< indent(20, 0, '-') << '\n';
-		int i = 0;
-		for (const auto& it : primitives) {
-			std::string str{ std::to_string(i++) };
-
-			std::cout << str << indent(COLSZ_0, str.size()) << "| ";
-
-			// get position string
-			str = std::to_string(it.pos);
-			if (const auto& endPos{ it.getEndPos() - 1 }; it.pos != endPos)
-				str += "-" + std::to_string(endPos);
-			std::cout << str << indent(COLSZ_1, str.size()) << "| ";
-			// clear buffer
-
-			// print token length
-			str = str::stringify(it.getEndPos() - it.pos);
-			std::cout << str << indent(COLSZ_2, str.size()) << "| ";
-
-			// print token type
-			str = PrimitiveTypeNames.find(it.type)->second;
-			std::cout << str << indent(COLSZ_3, str.size()) << "| ";
-
-			// print token value
-			std::cout << it.text << '\n';
-		}
-
-		std::cout << "\n\n";
-
-		const auto combined{ calc::expr::tkn::combine_tokens(calc::expr::PrimitiveTokenType::Unknown, std::move(lexemes)) };
-
-		std::cout << '\"' << expr << '\"' << '\n';
-		std::cout << '\"' << combined << '\"' << '\n';
-
-		return 0;
-
-		// ^ REMOVE WHEN DONE ^
-
-
-		const auto pipedInput{ hasPendingDataSTDIN() };
-
 		if (args.empty() || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
 			std::cout << print_help(procName.generic_string(), args.getv_any<opt3::Flag, opt3::Option>('h', "help"));
 			return 0;
 		}
 		else if (args.check_any<opt3::Flag, opt3::Option>('v', "version")) {
-			std::cout /* << calc_VERSION_EXTENDED */;
+			std::cout << calc_VERSION_EXTENDED << std::endl;
 			return 0;
 		}
 
@@ -328,13 +193,16 @@ int main(const int argc, char** argv)
 		std::stringstream exprbuf;
 
 		// if there is piped input move it into the expression buffer
-		if (pipedInput) {
+		if (hasPendingDataSTDIN())
 			exprbuf << std::cin.rdbuf() << ' ';
-		}
-
-		for (const auto& param : args.getv_all<opt3::Parameter>()) {
+		for (const auto& param : args.getv_all<opt3::Parameter>())
 			exprbuf << param << ' ';
-		}
+
+		const auto expr_root{ expr::tkn::expr_builder{ expr::tkn::primitive_tokenizer{
+			expr::tkn::lexer{ std::move(exprbuf) }.get_lexemes()
+		}.tokenize() }.build() };
+
+		std::cout << expr_root << std::endl;
 
 		return 0;
 	} catch (const std::exception& ex) {

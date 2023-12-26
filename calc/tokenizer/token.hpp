@@ -14,6 +14,18 @@ namespace calc::expr::tkn {
 	/// @brief	Requires type T to be a valid token type enum.
 	template<typename T> concept token_type = var::any_same<T, LexemeType, PrimitiveTokenType, ComplexTokenType>;
 
+	/// @brief	Gets the friendly name of the specified token type value.
+	template<token_type T> std::string get_name(T const& tokenType)
+	{
+		if constexpr (std::same_as<T, LexemeType>)
+			return LexemeTypeNames[static_cast<int>(tokenType)];
+		else if constexpr (std::same_as<T, PrimitiveTokenType>)
+			return PrimitiveTokenTypeNames[static_cast<int>(tokenType)];
+		else if constexpr (std::same_as<T, ComplexTokenType>)
+			return ComplexTokenTypeNames[static_cast<int>(tokenType)];
+		else static_assert(token_type<T>, "get_name() does not handle all token types!");
+	}
+
 	/**
 	 * @brief				A basic token object with the specified token type.
 	 * @tparam TTokenType -	The type of token contained by this instance.
@@ -136,7 +148,7 @@ namespace calc::expr::tkn {
 		}
 
 		template<typename Tr> requires (sizeof(Tr) == sizeof(type_t))
-		constexpr basic_token<Tr> generic_token() const
+			constexpr basic_token<Tr> generic_token() const
 		{
 			return{ static_cast<Tr>(type), pos, text };
 		}
@@ -148,7 +160,48 @@ namespace calc::expr::tkn {
 		}
 	};
 
+	/// @brief	A lexeme token, the most basic kind of token subtype.
+	using lexeme = basic_token<LexemeType>;
+	/// @brief	A primitive token, one step up from a lexeme.
+	using primitive = basic_token<PrimitiveTokenType>;
+	/// @brief	A complex token, the most advanced kind of token subtype.
+	using complex = basic_token<ComplexTokenType>;
+
 #pragma region combine_tokens
+	/**
+	 * @brief					Concatenates the specified tokens into a merged token with the specified type.
+	 * @tparam TResultType	  -	The type of token type used by the resulting merged token.
+	 * @tparam TokenIt		  -	The type of iterator for the tokens container.
+	 * @tparam TResult		  -	The type of the resulting merged token.
+	 * @param type			  -	The token type of the new merged token instance.
+	 * @param begin			  -	The iterator to begin combining tokens at.
+	 * @param end			  -	The (exclusive) iterator to stop combining tokens at.
+	 * @returns					A single merged token with the specified token type.
+	 */
+	template<std::input_iterator TokenIt, token_type TResultType, std::derived_from<basic_token<TResultType>> TResult = basic_token<TResultType>>
+	constexpr TResult combine_tokens(TResultType const& type, TokenIt const& begin, TokenIt const& end)
+	{
+		if (begin == end) return{ type }; //< short-circuit
+
+		std::stringstream buf;
+		std::streamoff startPos{ begin->pos };
+
+		for (auto it{ begin }; it != end; ++it) {
+			if (it != begin) {
+				if (const auto prevEndPos{ (it - 1)->getEndPos() }; prevEndPos < it->pos) {
+					// insert padding
+					buf << indent(it->pos, prevEndPos);
+				}
+				else if (prevEndPos > it->pos)
+					throw make_exception("combine_tokens():  The specified tokens are in an invalid order; expected ", it->get_debug_string(), " to come before ", it->get_debug_string());
+				// else if equal, fallthrough (tokens are adjacent)
+			}
+
+			buf << *it;
+		}
+
+		return{ type, startPos, buf.str() };
+	}
 	/**
 	 * @brief					Concatenates the specified tokens into a merged token with the specified type.
 	 * @tparam TResultType	  -	The type of token type used by the resulting merged token.
@@ -170,7 +223,7 @@ namespace calc::expr::tkn {
 			if (it != it_begin) {
 				if (const auto prevEndPos{ (it - 1)->getEndPos() }; prevEndPos < it->pos) {
 					// insert padding
-					buf << indent(it->pos - prevEndPos);
+					buf << indent(it->pos, prevEndPos);
 				}
 				else if (prevEndPos > it->pos)
 					throw make_exception("combine_tokens():  The specified tokens are in an invalid order; expected ", it->get_debug_string(), " to come before ", it->get_debug_string());
@@ -200,26 +253,82 @@ namespace calc::expr::tkn {
 		([&](const auto& tkn) {
 			const auto tknEndPos{ tkn.getEndPos() };
 
-		if (startPos == -1)
-			startPos = tkn.pos;
-		else {
-			if (prevEndPos < tkn.pos)
-				buf << indent(tkn.pos - prevEndPos);
-			else if (prevEndPos > tkn.pos)
-				throw make_exception("combine_tokens():  The specified tokens are in an invalid order!");
-			// else if equal, fallthrough (tokens are adjacent)
-		}
+			if (startPos == -1)
+				startPos = tkn.pos;
+			else {
+				if (prevEndPos < tkn.pos)
+					buf << indent(tkn.pos - prevEndPos);
+				else if (prevEndPos > tkn.pos)
+					throw make_exception("combine_tokens():  The specified tokens are in an invalid order!");
+				// else if equal, fallthrough (tokens are adjacent)
+			}
 
-		buf << tkn;
-		prevEndPos = tknEndPos;
+			buf << tkn;
+			prevEndPos = tknEndPos;
 		 }(tokens), ...);
 
 		return{ type, startPos, buf.str() };
 	}
 #pragma endregion combine_tokens
 
-	/// @brief	A lexeme token, the most basic kind of token subtype.
-	using lexeme = basic_token<LexemeType>;
-	/// @brief	A primitive token, one step up from a lexeme but not a full token.
-	using primitive = basic_token<PrimitiveTokenType>;
+#pragma region stringify_tokens
+	/**
+	 * @brief				Creates a string that represents the specified tokens.
+	 *						The tokens must be in the correct order.
+	 * @tparam INCLUDE_WS -	When true, the returned string includes preceding whitespace before the first token. Defaults to true.
+	 * @param tokens	  -	The tokens to include in the string.
+	 * @returns				A string that includes the specified tokens.
+	 */
+	template<bool INCLUDE_WS = true>
+	constexpr std::string stringify_tokens(var::derived_from_templated<basic_token> auto&&... tokens)
+	{
+		std::stringstream ss;
+		std::streamoff startPos{ -1 }, prevEndPos{ startPos };
+
+		([&](const auto& tkn) {
+			const auto tknEndPos{ tkn.getEndPos() };
+
+		if (startPos == -1) {
+			startPos = tkn.pos;
+			if (INCLUDE_WS && startPos > 0) // include preceding whitespace
+				ss << indent(startPos);
+		}
+		else {
+			if (prevEndPos < tkn.pos)
+				ss << indent(tkn.pos, prevEndPos);
+			else if (prevEndPos > tkn.pos)
+				throw make_exception("combine_tokens():  The specified tokens are in an invalid order!");
+			// else if equal, fallthrough (tokens are adjacent)
+		}
+
+		ss << tkn;
+		prevEndPos = tknEndPos;
+		 }(tokens), ...);
+
+		return ss.str();
+	}
+	template<bool INCLUDE_WS = true, class TokenIt>
+	constexpr std::string stringify_tokens(TokenIt const& begin, TokenIt const& end)
+	{
+		if (begin == end) return{};
+
+		std::stringstream ss;
+
+		// print the first token
+		if (INCLUDE_WS && begin->pos > 0) {
+			// include preceding whitespace
+			ss << indent(begin->pos);
+		}
+		ss << *begin;
+		size_t prevEndPos{ begin->getEndPos() };
+
+		// print the rest of the tokens
+		for (auto it{ begin + 1 }; it != end; ++it) {
+			ss << indent(it->pos, prevEndPos) << *it;
+			prevEndPos = it->getEndPos();
+		}
+
+		return ss.str();
+	}
+#pragma endregion stringify_tokens
 }

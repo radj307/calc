@@ -8,19 +8,18 @@
 
 
 namespace calc::expr::tkn {
-	/// @brief	 tokenizer that converts lexemes into primitive tokens.
+	/// @brief	 Tokenizer that converts lexemes into primitive tokens, and performs syntax analysis to verify that the expression uses valid syntax.
 	class primitive_tokenizer {
-		using iterator_t = typename std::vector<lexeme>::iterator;
-		using const_iterator_t = typename std::vector<lexeme>::const_iterator;
+		using const_iterator = typename std::vector<lexeme>::const_iterator;
 
 	protected:
 		const std::vector<lexeme> lexemes;
-		const_iterator_t begin;
-		const_iterator_t end;
-		const_iterator_t current;
+		const_iterator begin;
+		const_iterator end;
+		const_iterator current;
 
 		template<size_t INDENT = 10, var::streamable... Ts>
-		std::string make_error_message_from(const_iterator_t const& iterator, std::string const& tokenErrorMessage, Ts&&... message)
+		std::string make_error_message_from(const_iterator const& iterator, std::string const& tokenErrorMessage, Ts&&... message)
 		{
 			std::stringstream ss;
 			(ss << ... << message);
@@ -64,7 +63,7 @@ namespace calc::expr::tkn {
 			return !at_end() && std::distance(current, end) >= 1;
 		}
 
-		std::vector<lexeme> getRange(const_iterator_t const& begin, const_iterator_t const& end)
+		std::vector<lexeme> getRange(const_iterator const& begin, const_iterator const& end)
 		{
 			const auto distance{ std::distance(begin, end) };
 
@@ -83,7 +82,7 @@ namespace calc::expr::tkn {
 			return std::move(vec);
 		}
 
-		const_iterator_t findEndBracket(const_iterator_t const& start, const LexemeType openBracketType, const LexemeType closeBracketType) const
+		const_iterator findEndBracket(const_iterator const& start, const LexemeType openBracketType, const LexemeType closeBracketType) const
 		{
 			size_t depth{ 0 };
 
@@ -106,13 +105,13 @@ namespace calc::expr::tkn {
 		 * @param returnPreviousInstead	  - When true, returns the lexeme before the gap instead of the one after it.
 		 * @returns							An iterator to the target lexeme when successful; otherwise, the end iterator.
 		 */
-		[[nodiscard]] const_iterator_t findFirstNonAdjacent(const_iterator_t const& start, const bool returnPreviousInstead = false) const
+		[[nodiscard]] const_iterator findFirstNonAdjacent(const_iterator const& start, const bool returnPreviousInstead = false) const
 		{
 			// short circuit if we're at the end
 			if (start == end) return start;
 
 			// cache the starting iterator
-			const_iterator_t prev{ start };
+			const_iterator prev{ start };
 
 			// begin looping from the next item
 			for (auto it{ start + 1 }; it != end; ++it) {
@@ -133,7 +132,7 @@ namespace calc::expr::tkn {
 		 * @returns					An iterator to the target lexeme when successful; otherwise, the end iterator.
 		 */
 		template<std::same_as<LexemeType>... Ts> requires (var::at_least_one<Ts...>)
-			[[nodiscard]] const_iterator_t findFirstNotOfType(const_iterator_t const& start, Ts const&... lexemeTypes) const
+			[[nodiscard]] const_iterator findFirstNotOfType(const_iterator const& start, Ts const&... lexemeTypes) const
 		{
 			// begin looping at the specified start
 			for (auto it{ start }; it != end; ++it) {
@@ -146,13 +145,13 @@ namespace calc::expr::tkn {
 			return end;
 		}
 		template<std::same_as<LexemeType>... Ts> requires (var::at_least_one<Ts...>)
-			[[nodiscard]] const_iterator_t findFirstNonAdjacentOrNotOfType(const_iterator_t const& start, Ts const&... lexemeTypes) const
+			[[nodiscard]] const_iterator findFirstNonAdjacentOrNotOfType(const_iterator const& start, Ts const&... lexemeTypes) const
 		{
 			// short circuit if starting at the end
 			if (start == end) return start;
 
 			// cache the starting iterator
-			const_iterator_t prev{ start };
+			const_iterator prev{ start };
 
 			// begin looping from the next item
 			for (auto it{ start + 1 }; it != end; ++it) {
@@ -168,15 +167,18 @@ namespace calc::expr::tkn {
 			return end;
 		}
 
-		std::vector<primitive> getNextPrimitiveFrom(const_iterator_t& iterator)
+		std::vector<primitive> getNextPrimitivesFrom(const_iterator& iterator)
 		{
-			// TODO:
-			//   Replace FunctionParams with FunctionParamsOpen/Close, and add a goto
-			//    statement up here to allow tokenizing inside function parameter brackets.
-
 			const auto lex{ *iterator };
 
 			switch (lex.type) {
+			case LexemeType::Semicolon:
+				return{ { PrimitiveTokenType::Separator, lex } };
+			case LexemeType::Colon: [[fallthrough]];
+			case LexemeType::Equal:
+				return{ { PrimitiveTokenType::Setter, lex } };
+			case LexemeType::Comma:
+				return{ { PrimitiveTokenType::TermSeparator, lex } };
 			case LexemeType::Operator: // resolve operator:
 				switch (lex.text.front()) {
 				case '+':
@@ -191,8 +193,32 @@ namespace calc::expr::tkn {
 					return{ { PrimitiveTokenType::Modulo, lex } };
 				case '!':
 					return{ { PrimitiveTokenType::Factorial, lex } };
-				case '|':
+				case '|': {
+					// TODO: Add absolute value handling ("|a+b|")
+					//       Must be adjacent and have a closing char to be an abs
+					
+					//if (auto it{ iterator + 1 }; lex.isAdjacentTo(*it)) {
+					//	long depth{ 0 };
+					//	for (auto prev_it{ iterator }; it != end; ++it, ++prev_it) {
+					//		if (!depth && !it->isAdjacentTo(*prev_it))
+					//			break; //< there was non-enclosed whitespace
+					//		switch (it->type) {
+					//		case LexemeType::ParenthesisOpen:
+					//			++depth;
+					//			break;
+					//		case LexemeType::ParenthesisClose:
+					//			if (--depth < 0)
+					//				goto BREAK;
+					//			break;
+					//		case LexemeType::Operator:
+					//			if (it->text.front() == '|')
+					//			break;
+					//		}
+					//	}
+					//BREAK:
+					//}
 					return{ { PrimitiveTokenType::BitOR, lex } };
+				}
 				case '&':
 					return{ { PrimitiveTokenType::BitAND, lex } };
 				case '^':
@@ -222,6 +248,10 @@ namespace calc::expr::tkn {
 					// greater than
 					return{ { PrimitiveTokenType::GreaterThan, lex } };
 				}
+			case LexemeType::SquareBracketOpen:
+				return{ { PrimitiveTokenType::ArrayOpen, lex } };
+			case LexemeType::SquareBracketClose:
+				return{ { PrimitiveTokenType::ArrayClose, lex } };
 			case LexemeType::BinaryNumber:
 				return{ { PrimitiveTokenType::BinaryNumber, lex } };
 			case LexemeType::OctalNumber:
@@ -306,7 +336,7 @@ namespace calc::expr::tkn {
 		}
 
 	public:
-		primitive_tokenizer(const std::vector<lexeme>& lexemes) : lexemes{ lexemes }, begin{ lexemes.begin() }, end{ lexemes.end() }, current{ lexemes.begin() } {}
+		primitive_tokenizer(std::vector<lexeme> const& lexemes) : lexemes{ lexemes }, begin{ this->lexemes.begin() }, end{ this->lexemes.end() }, current{ this->lexemes.begin() } {}
 
 		/// @brief	Tokenizes the lexeme buffer into a vector of primitive tokens.
 		std::vector<primitive> tokenize()
@@ -321,7 +351,7 @@ namespace calc::expr::tkn {
 			for (; current != end; ++current) {
 				if (current->type == LexemeType::_EOF) break;
 
-				const auto tokens{ getNextPrimitiveFrom(current) };
+				const auto tokens{ getNextPrimitivesFrom(current) };
 				vec.insert(vec.end(), tokens.begin(), tokens.end());
 			}
 

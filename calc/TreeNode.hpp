@@ -53,6 +53,9 @@ namespace calc {
 		[[nodiscard]] auto rend() noexcept { return children.rend(); }
 	#pragma endregion begin/end
 
+		/// @brief	Checks if this node has any child nodes.
+		constexpr bool hasChildren() const noexcept { return !children.empty(); }
+
 		/// @brief	Gets the immediate child node that matches the specified predicate.
 		[[nodiscard]] std::optional<node_t&> getChild(const std::function<bool(node_t)>& predicate) noexcept
 		{

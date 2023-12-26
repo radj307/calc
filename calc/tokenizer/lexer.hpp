@@ -221,6 +221,7 @@ namespace calc::expr::tkn {
 		/// @brief	Creates a new lexer instance with the specified data.
 		lexer(std::stringstream&& ss, const bool throwOnUnknownLexeme = false) : throwOnUnknownLexeme{ throwOnUnknownLexeme }, sbuf{ std::move(ss) } {}
 		lexer(std::string&& str, const bool throwOnUnknownLexeme = false) : throwOnUnknownLexeme{ throwOnUnknownLexeme }, sbuf{ std::move(str) } {}
+		lexer(std::string const& str, const bool throwOnUnknownLexeme = false) : throwOnUnknownLexeme{ throwOnUnknownLexeme }, sbuf{ str } {}
 
 		lexeme getNextLexeme()
 		{
