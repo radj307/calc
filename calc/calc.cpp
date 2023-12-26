@@ -149,22 +149,11 @@ int main(const int argc, char** argv)
 {
 	using namespace calc;
 
-	basic_operator op{ std::powl };
+	FunctionMap fnmap;
 
-	auto result = op(0.0, 0.0);
-
-	//std::vector<std::any> args{ 0.0l, 0.0l };
-
-	//// this works:
-	//auto res = std::apply(std::powl, unwrap<long double, long double>(args, std::index_sequence_for<long double, long double>()));
-
-	//// this works:
-	//auto fn = wrap_call<long double, long double>(std::powl);
-
-	//FunctionMap fnmap1{};
-	//const auto res1 = std::any_cast<long double>(fnmap1.invoke("pow", 0.0l, 0.0l));
-
-
+	auto* pow = fnmap.get("pow");
+	auto result_float = (*pow)(2, 4);
+	auto result_int = (*pow)(2, 4);
 
 
 	std::string _expr{ "5 + ( (5 + 7 * 23) / (2 + sqrt(9)) ) / 2" };

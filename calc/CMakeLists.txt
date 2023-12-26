@@ -44,12 +44,10 @@ add_executable(calc "${SRCS}" "${RESOURCES}")
 set_property(TARGET calc PROPERTY CXX_STANDARD 20)
 set_property(TARGET calc PROPERTY CXX_STANDARD_REQUIRED ON)
 
-if (MSVC)
-	target_compile_options(calc PRIVATE "${307lib_compiler_commandline}")
-endif()
+target_compile_options(calc PRIVATE "${307lib_compiler_commandline}")
 
 target_include_directories(calc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/rc")
 
-target_sources(calc PRIVATE "${HEADERS}")
+target_sources(calc PUBLIC "${HEADERS}")
 
 target_link_libraries(calc PRIVATE libcalc TermAPI filelib strlib)

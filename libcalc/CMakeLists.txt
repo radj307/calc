@@ -20,7 +20,10 @@ set_property(TARGET libcalc PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 target_compile_options(libcalc PRIVATE "${307lib_compiler_commandline}")
 
-target_sources(libcalc PUBLIC "${HEADERS}")
+include(PrependEach)
+PREPEND_EACH(HEADERS_ABS "${HEADERS}" "${CMAKE_CURRENT_SOURCE_DIR}/")
+
+target_sources(libcalc PUBLIC "${HEADERS_ABS}")
 
 target_include_directories(libcalc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/src")
 
