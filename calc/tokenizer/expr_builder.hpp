@@ -56,6 +56,8 @@ namespace calc::expr::tkn {
 					// TODO: check if end iterator is valid
 
 					auto node{ expr_builder{ it + 2, end }.build(combine_tokens(ComplexTokenType::Function, it, end + 1)) }; //< RECURSE
+					// insert the function name token as the first child
+					node.children.insert(node.children.begin(), *it);
 					root.addChild(node);
 
 					it = end;
