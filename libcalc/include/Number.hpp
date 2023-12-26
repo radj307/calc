@@ -8,15 +8,55 @@
 
 namespace calc {
 	struct Number {
-		using int_t = size_t;
+		using int_t = int64_t;
 		using real_t = long double;
 		using value_t = std::variant<int_t, real_t>;
 
 		value_t value;
 
 		constexpr Number() = default;
-		constexpr Number(const value_t& value) : value{ value } {}
-		constexpr Number(value_t&& value) : value{ std::move(value) } {}
+	#pragma region Integral Ctors
+		constexpr Number(int8_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int8_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int16_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int16_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int32_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int32_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int64_t const& value) : value{ value } {}
+		constexpr Number(int64_t&& value) : value{ std::forward<int_t>(value) } {}
+		constexpr Number(uint8_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint8_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint16_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint16_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint32_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint32_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint64_t const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint64_t&& value) : value{ static_cast<int_t>(value) } {}
+	#pragma endregion Integral Ctors
+	#pragma region Floating-Point Ctors
+		constexpr Number(real_t const& value) : value{ value } {}
+		constexpr Number(real_t&& value) : value{ std::forward<real_t>(value) } {}
+		constexpr Number(double const& value) : value{ static_cast<real_t>(value) } {}
+		constexpr Number(double&& value) : value{ static_cast<real_t>(value) } {}
+		constexpr Number(float const& value) : value{ static_cast<real_t>(value) } {}
+		constexpr Number(float&& value) : value{ static_cast<real_t>(value) } {}
+	#pragma endregion Floating-Point Ctors
+
+	#pragma region Integral Conversion Operators
+		constexpr operator int8_t() const noexcept { return cast_to<int8_t>(); }
+		constexpr operator int16_t() const noexcept { return cast_to<int16_t>(); }
+		constexpr operator int32_t() const noexcept { return cast_to<int32_t>(); }
+		constexpr operator int64_t() const noexcept { return cast_to<int64_t>(); }
+		constexpr operator uint8_t() const noexcept { return cast_to<uint8_t>(); }
+		constexpr operator uint16_t() const noexcept { return cast_to<uint16_t>(); }
+		constexpr operator uint32_t() const noexcept { return cast_to<uint32_t>(); }
+		constexpr operator uint64_t() const noexcept { return cast_to<uint64_t>(); }
+	#pragma endregion Integral Conversion Operators
+	#pragma region Floating-Point Conversion Operators
+		constexpr operator float() const noexcept { return cast_to<float>(); }
+		constexpr operator double() const noexcept { return cast_to<double>(); }
+		constexpr operator real_t() const noexcept { return cast_to<real_t>(); }
+	#pragma endregion Floating-Point Conversion Operators
 
 		static Number from_binary(std::string const& binaryNumber)
 		{
@@ -48,26 +88,32 @@ namespace calc {
 		{
 			return std::visit([](auto&& value, auto&& r) {
 				return value == r;
-			}, l.value, r);
+							  }, l.value, r);
 		}
 		template<var::any_same_or_convertible<int_t, real_t> T>
 		friend bool operator!=(const Number& l, const T r)
 		{
 			return std::visit([](auto&& value, auto&& r) {
 				return value != r;
-			}, l.value, r);
+							  }, l.value, r);
 		}
 		friend bool operator==(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
 				return lVal == rVal;
-			}, l.value, r.value);
+							  }, l.value, r.value);
 		}
 		friend bool operator!=(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
 				return lVal != rVal;
-			}, l.value, r.value);
+							  }, l.value, r.value);
+		}
+
+		template<var::numeric T>
+		constexpr T cast_to() const noexcept
+		{
+			return std::visit([](auto const& value) { return static_cast<T>(value); }, value);
 		}
 
 		template<var::any_same_or_convertible_to<int_t, real_t> T>
@@ -84,7 +130,7 @@ namespace calc {
 		{
 			std::visit([&](auto&& value) {
 				os << $fwd(value);
-			}, n.value);
+					   }, n.value);
 			return os;
 		}
 	};

@@ -149,6 +149,10 @@ int main(const int argc, char** argv)
 {
 	using namespace calc;
 
+	basic_operator op{ std::powl };
+
+	auto result = op(0.0, 0.0);
+
 	//std::vector<std::any> args{ 0.0l, 0.0l };
 
 	//// this works:

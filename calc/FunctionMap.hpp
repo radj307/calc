@@ -12,33 +12,63 @@
 #include <typeinfo>
 
 namespace calc {
+
+	/// @brief	Unwraps the specified vector into a tuple with the specified type(s) using static_cast.
+	///			The vector must contain at least as many types as ...Ts.
+	template<typename T, typename... Ts, std::size_t... Indicies>
+	constexpr auto unwrap_args(std::vector<T> const& vec, std::index_sequence<Indicies...>)
+	{
+		return std::make_tuple(static_cast<Ts>(vec[Indicies])...);
+	}
+
+	/**
+	 * @brief				Creates a callable wrapper for the specified function that allows it to be called
+	 *						 with a vector of Number values in place of its actual argument types. It also
+	 *						 casts the function's return value to a Number.
+	 * @tparam Returns	  -	The return type for the specified function.
+	 * @tparam ...Args	  -	The argument type(s) for the specified function.
+	 * @param func		  -	The function to create a wrapper for.
+	 * @returns				A function wrapper that accepts a vector of Numbers and returns a Number.
+	 */
+	template<typename Returns, typename... Args>
+	constexpr auto wrap_function(Returns(*func)(Args...))
+	{
+		static_assert(var::numeric<Returns>, "wrap_function() can only be used for functions that return a numeric type!");
+		static_assert((var::numeric<Args> && ...), "wrap_function() can only be used for functions that have numeric parameter types only!");
+
+		return [=](std::vector<Number> const& args) -> Number {
+			return Number{ std::apply(func, unwrap_args<Number, Args...>(args, std::index_sequence_for<Args...>())) };
+		};
+	}
+
+
 	class basic_operator {
 	public:
 		using operation_t = std::function<Number(std::vector<Number> const&)>;
 	private:
-
-		size_t operand_count;
-		operation_t operation;
+		operation_t func;
 
 	public:
-		basic_operator() {}
+		//basic_operator(operation_t const& func) : func{ func } {}
+		template<typename Returns, typename... Args>
+		basic_operator(Returns(*func)(Args...)) : func{ wrap_function<Returns, Args...>(func) } {}
 
 		/**
 		 * @brief
 		 * @param operands
 		 * @return
 		 */
-		Number invoke(std::vector<Number> const& operands) const
+		Number invoke(std::vector<Number> const& operands) const noexcept(false)
 		{
-			return operation(operands);
+			return func(operands);
 		}
 		/**
 		 * @brief				Attempts to invoke the operation while catching and discarding any exceptions that occur.
 		 * @param operands    -	The parameters of the operation function.
-		 * @param result	  -	A Number reference to set to the result of the operation.
+		 * @param result	  -	A Number reference to set to the result of the operation. If the operation fails, the result is NAN.
 		 * @returns				true when successful; otherwise, false.
 		 */
-		bool try_invoke(std::vector<Number> const& operands, Number& result)
+		bool try_invoke(std::vector<Number> const& operands, Number& result) const noexcept
 		{
 			try {
 				result = invoke(operands);
@@ -48,68 +78,15 @@ namespace calc {
 				return false;
 			}
 		}
-	};
 
-	class generic_function {
-		void* func{ nullptr };
-		std::type_info func_type;
-		std::type_info return_type;
-		std::vector<std::type_info> arg_types;
-
-	public:
-		template<typename Returns, typename... Args>
-		constexpr generic_function(const std::function<Returns(Args...)>& func) :
-			func{ reinterpret_cast<void*>(func.target()) },
-			func_type{ func.target_type() },
-			return_type{ typeid(Returns) },
-			arg_types{ typeid(Args)... }
-		{}
-
-		std::any invoke(std::vector<std::any> const& argv) const noexcept(false)
+		template<var::same_or_convertible<Number>... Ts>
+		std::optional<Number> operator()(Ts const&... operands) const noexcept
 		{
-
-		}
-	};
-
-	template<class Func, typename... Ts>
-	auto call(const Func& function, std::tuple<Ts...>&& args)
-	{
-		return std::apply(function, std::forward<std::tuple<Ts...>>(args));
-	}
-
-	// Unwrap function to extract elements from std::vector<std::any>
-	template<typename... Args, std::size_t... Indices>
-	auto unwrap(const std::vector<std::any>& vec, std::index_sequence<Indices...> = std::index_sequence_for<Args...>())
-	{
-		return std::make_tuple(std::any_cast<Args>(vec[Indices])...);
-	}
-
-	template<typename... Args, class Func>
-	std::function<std::any(std::vector<std::any>)> wrap_call(Func func)
-	{
-		return std::move([=](std::vector<std::any> const& args) -> std::any {
-			return call(func, unwrap<Args...>(args, std::index_sequence_for<Args...>()));
-		});
-	}
-
-	struct FunctionMap {
-
-
-		std::map<std::string, std::function<std::any(std::vector<std::any> const&)>> map{
-			// using std::make_pair() here makes compilation much faster than using uniform initialization
-			std::make_pair("pow", wrap_call<long double, long double>(std::powl)),
-		};
-
-
-
-		template<typename... Ts>
-		std::optional<std::any> invoke(std::string const& functionName, Ts&&... args) const
-		{
-			if (const auto& fn{ map.find(functionName) }; fn != map.end()) {
-				return fn->second({ std::forward<Ts>(args)... });
+			Number result;
+			if (try_invoke({ static_cast<Number>(operands)... }, result)) {
+				return result;
 			}
 			return std::nullopt;
 		}
-
 	};
 }
