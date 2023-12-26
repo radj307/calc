@@ -89,62 +89,6 @@ struct print_help {
 	}
 };
 
-
-static const std::map<calc::expr::LexemeType, std::string> LexemeTypeNames{
-	{ calc::expr::LexemeType::Unknown, "Unknown" },
-	{ calc::expr::LexemeType::Escape, "Escape" },
-	{ calc::expr::LexemeType::Equal, "Equal" },
-	{ calc::expr::LexemeType::Colon, "Colon" },
-	{ calc::expr::LexemeType::Semicolon, "Semicolon" },
-	{ calc::expr::LexemeType::Operator, "Operator" },
-	{ calc::expr::LexemeType::Alpha, "Alpha" },
-	{ calc::expr::LexemeType::IntNumber, "IntNumber" },
-	{ calc::expr::LexemeType::RealNumber, "RealNumber" },
-	{ calc::expr::LexemeType::BinaryNumber, "BinaryNumber" },
-	{ calc::expr::LexemeType::OctalNumber, "OctalNumber" },
-	{ calc::expr::LexemeType::HexNumber, "HexNumber" },
-	{ calc::expr::LexemeType::Period, "Period" },
-	{ calc::expr::LexemeType::Comma, "Comma" },
-	{ calc::expr::LexemeType::Macro, "Macro" },
-	{ calc::expr::LexemeType::AngleBracketOpen, "AngleBracketOpen" },
-	{ calc::expr::LexemeType::AngleBracketClose, "AngleBracketClose" },
-	{ calc::expr::LexemeType::SquareBracketOpen, "SquareBracketOpen" },
-	{ calc::expr::LexemeType::SquareBracketClose, "SquareBracketClose" },
-	{ calc::expr::LexemeType::ParenthesisOpen, "ParenthesisOpen" },
-	{ calc::expr::LexemeType::ParenthesisClose, "ParenthesisClose" },
-	{ calc::expr::LexemeType::BraceOpen, "BraceOpen" },
-	{ calc::expr::LexemeType::BraceClose, "BraceClose" },
-	{ calc::expr::LexemeType::_EOF, "_EOF" },
-};
-static const std::map<calc::expr::PrimitiveTokenType, std::string> PrimitiveTypeNames{
-	{ calc::expr::PrimitiveTokenType::Unknown, "Unknown" },
-	{ calc::expr::PrimitiveTokenType::Variable, "Variable" },
-	{ calc::expr::PrimitiveTokenType::ExpressionOpen, "ExpressionOpen" },
-	{ calc::expr::PrimitiveTokenType::ExpressionClose, "ExpressionClose" },
-	{ calc::expr::PrimitiveTokenType::FunctionName, "FunctionName" },
-	{ calc::expr::PrimitiveTokenType::FunctionParamsOpen, "FunctionParamsOpen" },
-	{ calc::expr::PrimitiveTokenType::FunctionParamsClose, "FunctionParamsClose" },
-	{ calc::expr::PrimitiveTokenType::IntNumber, "IntNumber" },
-	{ calc::expr::PrimitiveTokenType::RealNumber, "RealNumber" },
-	{ calc::expr::PrimitiveTokenType::BinaryNumber, "BinaryNumber" },
-	{ calc::expr::PrimitiveTokenType::OctalNumber, "OctalNumber" },
-	{ calc::expr::PrimitiveTokenType::HexNumber, "HexNumber" },
-	{ calc::expr::PrimitiveTokenType::Add, "Add" },
-	{ calc::expr::PrimitiveTokenType::Subtract, "Subtract" },
-	{ calc::expr::PrimitiveTokenType::Multiply, "Multiply" },
-	{ calc::expr::PrimitiveTokenType::Divide, "Divide" },
-	{ calc::expr::PrimitiveTokenType::Modulo, "Modulo" },
-	{ calc::expr::PrimitiveTokenType::Exponent, "Exponent" },
-	{ calc::expr::PrimitiveTokenType::Factorial, "Factorial" },
-	{ calc::expr::PrimitiveTokenType::LeftShift, "LeftShift" },
-	{ calc::expr::PrimitiveTokenType::RightShift, "RightShift" },
-	{ calc::expr::PrimitiveTokenType::BitOR, "BitOR" },
-	{ calc::expr::PrimitiveTokenType::BitAND, "BitAND" },
-	{ calc::expr::PrimitiveTokenType::BitXOR, "BitXOR" },
-	{ calc::expr::PrimitiveTokenType::BitNOT, "BitNOT" },
-	{ calc::expr::PrimitiveTokenType::Equal, "Equal" },
-};
-
 int main(const int argc, char** argv)
 {
 	using namespace calc;
@@ -152,7 +96,7 @@ int main(const int argc, char** argv)
 	FunctionMap fnmap;
 
 	auto* pow = fnmap.get("pow");
-	auto result_float = (*pow)(2, 4);
+	auto result_float = (*pow)(2.5, 4);
 	auto result_int = (*pow)(2, 4);
 
 

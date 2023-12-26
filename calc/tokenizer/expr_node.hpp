@@ -18,12 +18,5 @@ namespace calc::expr::tkn {
 		return os;
 	}
 
-	struct expr_node : public TreeNode<vtoken> {
-		template<typename T>
-		constexpr bool is_type() const noexcept { return std::holds_alternative<T>(value); }
-		constexpr bool is_primitive() const noexcept { return is_type<primitive>(); }
-		constexpr bool is_complex() const noexcept { return is_type<complex>(); }
-
-
-	};
+	using expr_node = TreeNode<vtoken>;
 }

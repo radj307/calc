@@ -32,14 +32,11 @@ namespace calc {
 		 * @param func		  -	The function to create a wrapper for.
 		 * @returns				A function wrapper that accepts a vector of Numbers and returns a Number.
 		 */
-		template<typename Returns, typename... Args>
+		template<var::numeric Returns, var::numeric... Args>
 		constexpr auto wrap_function(Returns(*func)(Args...))
 		{
-			static_assert(var::numeric<Returns>, "wrap_function() can only be used for functions that return a numeric type!");
-			static_assert((var::numeric<Args> && ...), "wrap_function() can only be used for functions that have numeric parameter types only!");
-
 			return [=](std::vector<Number> const& args) -> Number {
-				return Number{ std::apply(func, unwrap_args<Number, Args...>(args, std::index_sequence_for<Args...>())) };
+				return static_cast<Number>(std::apply(func, unwrap_args<Number, Args...>(args, std::index_sequence_for<Args...>())));
 			};
 		}
 	}
@@ -267,11 +264,11 @@ namespace calc {
 			std::make_pair("atanh", new basic_operator{ atanhl }),
 			// Exponential and Logarithmic Functions
 			std::make_pair("exp", new basic_operator{ expl }),
-			std::make_pair("frexp", new basic_operator{ frexpl }),
+			//std::make_pair("frexp", new basic_operator{ frexpl }), //< uses pointers, must be adapted
 			std::make_pair("ldexp", new basic_operator{ ldexpl }),
 			std::make_pair("log", new basic_operator{ logl }),
 			std::make_pair("log10", new basic_operator{ log10l }),
-			std::make_pair("modf", new basic_operator{ modfl }),
+			//std::make_pair("modf", new basic_operator{ modfl }), //< uses pointers, must be adapted
 			std::make_pair("exp2", new basic_operator{ exp2l }),
 			std::make_pair("expm1", new basic_operator{ expm1l }),
 			std::make_pair("ilogb", new basic_operator{ ilogbl }),

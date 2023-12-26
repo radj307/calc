@@ -22,6 +22,8 @@ namespace calc {
 		constexpr Number(int16_t&& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(int32_t const& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(int32_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(long const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(long&& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(int64_t const& value) : value{ value } {}
 		constexpr Number(int64_t&& value) : value{ std::forward<int_t>(value) } {}
 		constexpr Number(uint8_t const& value) : value{ static_cast<int_t>(value) } {}
@@ -30,6 +32,8 @@ namespace calc {
 		constexpr Number(uint16_t&& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(uint32_t const& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(uint32_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(unsigned long const& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(unsigned long&& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(uint64_t const& value) : value{ static_cast<int_t>(value) } {}
 		constexpr Number(uint64_t&& value) : value{ static_cast<int_t>(value) } {}
 	#pragma endregion Integral Ctors
@@ -46,10 +50,12 @@ namespace calc {
 		constexpr operator int8_t() const noexcept { return cast_to<int8_t>(); }
 		constexpr operator int16_t() const noexcept { return cast_to<int16_t>(); }
 		constexpr operator int32_t() const noexcept { return cast_to<int32_t>(); }
+		constexpr operator long() const noexcept { return cast_to<long>(); }
 		constexpr operator int64_t() const noexcept { return cast_to<int64_t>(); }
 		constexpr operator uint8_t() const noexcept { return cast_to<uint8_t>(); }
 		constexpr operator uint16_t() const noexcept { return cast_to<uint16_t>(); }
 		constexpr operator uint32_t() const noexcept { return cast_to<uint32_t>(); }
+		constexpr operator unsigned long() const noexcept { return cast_to<unsigned long>(); }
 		constexpr operator uint64_t() const noexcept { return cast_to<uint64_t>(); }
 	#pragma endregion Integral Conversion Operators
 	#pragma region Floating-Point Conversion Operators
