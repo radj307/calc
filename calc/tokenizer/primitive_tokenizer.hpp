@@ -1,5 +1,6 @@
 #pragma once
 #include "token.hpp"
+#include "../settings.h"
 
 #include <var.hpp>				//< for concepts
 #include <charcompare.hpp>		//< for stdpred noexcept
@@ -196,7 +197,7 @@ namespace calc::expr::tkn {
 				case '|': {
 					// TODO: Add absolute value handling ("|a+b|")
 					//       Must be adjacent and have a closing char to be an abs
-					
+
 					//if (auto it{ iterator + 1 }; lex.isAdjacentTo(*it)) {
 					//	long depth{ 0 };
 					//	for (auto prev_it{ iterator }; it != end; ++it, ++prev_it) {
@@ -222,7 +223,7 @@ namespace calc::expr::tkn {
 				case '&':
 					return{ { PrimitiveTokenType::BitAND, lex } };
 				case '^':
-					return{ { PrimitiveTokenType::BitXOR, lex } };
+					return{ { settings.enableBitwiseXOR ? PrimitiveTokenType::BitXOR : PrimitiveTokenType::Exponent, lex } };
 				case '~':
 					return{ { PrimitiveTokenType::BitNOT, lex } };
 				default:
