@@ -44,4 +44,19 @@ X(_EOF)						\
 		LEXEME_TYPE
 	};
 #undef X
+
+	/// @brief	Determines whether the specified lexeme type is a number or not.
+	inline bool lexemeTypeIsNumber(LexemeType const& lexType)
+	{
+		switch (lexType) {
+		case LexemeType::BinaryNumber:
+		case LexemeType::OctalNumber:
+		case LexemeType::HexNumber:
+		case LexemeType::IntNumber:
+		case LexemeType::RealNumber:
+			return true;
+		default:
+			return false;
+		}
+	}
 }

@@ -3,7 +3,8 @@
 
 #include "tokenizer/lexer.hpp"
 #include "tokenizer/primitive_tokenizer.hpp"
-#include "tokenizer/expr_builder.hpp"
+#include "to_rpn.hpp"
+#include "evaluate_rpn.hpp"
 
 #include "FunctionMap.hpp" //< move this to libcalc
 // libcalc
@@ -92,29 +93,6 @@ struct print_help {
 int main(const int argc, char** argv)
 {
 	using namespace calc;
-	using namespace calc::expr;
-	using namespace calc::expr::tkn;
-
-	vtoken vt{};
-
-	vt.isAnyType(PrimitiveTokenType::Add, PrimitiveTokenType::Subtract);
-
-
-	FunctionMap fnmap;
-
-	auto* pow = fnmap.get("pow");
-	auto result_float = (*pow)(2.5, 4);
-	auto result_int = (*pow)(2, 4);
-
-
-	std::string _expr{ "5 + ( (5 + 7 * 23) / (2 + sqrt(9)) ) / 2" };
-	auto _tokens{ expr::tkn::primitive_tokenizer{ expr::tkn::lexer{ _expr }.get_lexemes() }.tokenize() };
-
-
-	std::cout
-		<< _expr << std::endl
-		<< print_tree<TreeNode<expr::tkn::vtoken>>(expr::tkn::expr_builder{ _tokens }.build(), [](auto&& node) -> std::vector<TreeNode<expr::tkn::vtoken>> { return node.children; }) << std::endl;
-
 
 	try {
 		opt3::ArgManager args{ argc, argv,
@@ -133,20 +111,29 @@ int main(const int argc, char** argv)
 			return 0;
 		}
 
-		// create a stringstream for the entire expression buffer
-		std::stringstream exprbuf;
+		std::vector<expr::tkn::primitive> tokens;
 
-		// if there is piped input move it into the expression buffer
-		if (hasPendingDataSTDIN())
-			exprbuf << std::cin.rdbuf() << ' ';
-		for (const auto& param : args.getv_all<opt3::Parameter>())
-			exprbuf << param << ' ';
+		{ // read in the expression
+			std::stringstream exprbuf;
 
-		const auto expr_root{ expr::tkn::expr_builder{ expr::tkn::primitive_tokenizer{
-			expr::tkn::lexer{ std::move(exprbuf) }.get_lexemes()
-		}.tokenize() }.build() };
+			// get input from STDIN (if it exists)
+			if (hasPendingDataSTDIN())
+				exprbuf << std::cin.rdbuf() << ' ';
+			// get parameters
+			for (const auto& param : args.getv_all<opt3::Parameter>())
+				exprbuf << param << ' ';
 
-		std::cout << expr_root << std::endl;
+			// tokenize the expression
+			tokens = expr::tkn::primitive_tokenizer{
+				expr::tkn::lexer{ std::move(exprbuf)
+			}.get_lexemes() }.tokenize();
+		}
+
+		FunctionMap fnmap;
+		std::cout << str::stringify(
+			std::fixed,
+			str::to_string(static_cast<Number::real_t>(expr::evaluate_rpn(expr::to_rpn(tokens), fnmap)), 32, false)
+		) << std::endl;
 
 		return 0;
 	} catch (const std::exception& ex) {

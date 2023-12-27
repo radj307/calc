@@ -184,8 +184,21 @@ namespace calc::expr::tkn {
 				switch (lex.text.front()) {
 				case '+':
 					return{ { PrimitiveTokenType::Add, lex } };
-				case '-':
+				case '-': {
+					if (const auto& next{ (iterator + 1) };
+						next != end && lex.isAdjacentTo(*next)) {
+						// handle negative numbers
+						switch (next->type) {
+						case LexemeType::IntNumber:
+							++iterator;
+							return{ combine_tokens(PrimitiveTokenType::IntNumber, lex, *next) };
+						case LexemeType::RealNumber:
+							++iterator;
+							return{ combine_tokens(PrimitiveTokenType::RealNumber, lex, *next) };
+						}
+					}
 					return{ { PrimitiveTokenType::Subtract, lex } };
+				}
 				case '*':
 					return{ { PrimitiveTokenType::Multiply, lex } };
 				case '/':
@@ -274,7 +287,7 @@ namespace calc::expr::tkn {
 					};
 
 					// add the function param open token
-					functionSegments.emplace_back(primitive{ PrimitiveTokenType::FunctionParamsOpen, *nextNonAlpha });
+					functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *nextNonAlpha });
 
 					// get pointer for function param close
 					const auto& paramEndBracket{ findEndBracket(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
@@ -289,7 +302,7 @@ namespace calc::expr::tkn {
 						functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
 					}
 
-					functionSegments.emplace_back(primitive{ PrimitiveTokenType::FunctionParamsClose, *paramEndBracket });
+					functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionClose, *paramEndBracket });
 					iterator = paramEndBracket; //< update the iterator
 
 					return functionSegments;

@@ -11,8 +11,6 @@ X(TermSeparator)				\
 X(ExpressionOpen)				\
 X(ExpressionClose)				\
 X(FunctionName)					\
-X(FunctionParamsOpen)			\
-X(FunctionParamsClose)			\
 X(ArrayOpen)					\
 X(ArrayClose)					\
 X(Separator)					\
@@ -58,4 +56,22 @@ X(AbsClose)						\
 		PRIMITIVE_TOKEN_TYPE
 	};
 #undef X
+
+	/**
+	 * @brief	Determines if the specified PrimitiveTokenType is a number.
+	 * @returns	true when the token is a number; otherwise, false.
+	 */
+	inline bool primitiveTypeIsNumber(PrimitiveTokenType const& tknType)
+	{
+		switch (tknType) {
+		case PrimitiveTokenType::BinaryNumber:
+		case PrimitiveTokenType::OctalNumber:
+		case PrimitiveTokenType::HexNumber:
+		case PrimitiveTokenType::IntNumber:
+		case PrimitiveTokenType::RealNumber:
+			return true;
+		default:
+			return false;
+		}
+	}
 }

@@ -262,16 +262,6 @@ namespace calc {
 		}
 	#pragma endregion try_invoke
 	};
-	/*class fallback_operator : basic_operator {
-		using basic_operator::operation_t;
-		using voperator = std::variant<singletype_operator, dualtype_operator>;
-
-		std::vector<voperator> operators;
-
-	public:
-		fallback_operator(std::initializer_list<voperator> operators) : operators{ operators } {}
-
-	};*/
 
 	struct FunctionMap {
 		// See https://cplusplus.com/reference/cmath/
@@ -358,6 +348,12 @@ namespace calc {
 			if (const auto& it{ map.find(functionName) }; it != map.end())
 				return it->second;
 			return nullptr;
+		}
+
+		/// @brief	Determines whether the specified name is a function or not.
+		inline bool isFunction(std::string const& name) const noexcept
+		{
+			return map.contains(name);
 		}
 	};
 }

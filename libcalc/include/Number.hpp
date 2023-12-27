@@ -105,55 +105,34 @@ namespace calc {
 		friend Number operator/(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
-				return Number{ lVal / rVal };
+				return Number{ static_cast<real_t>(lVal) / static_cast<real_t>(rVal) };
 			}, l.value, r.value);
 		}
 		friend Number operator*(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
-				return Number{ lVal * rVal };
+				return Number{ static_cast<real_t>(lVal) * static_cast<real_t>(rVal) };
 			}, l.value, r.value);
 		}
 		friend Number operator+(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
-				return Number{ lVal + rVal };
+				return Number{ static_cast<real_t>(lVal) + static_cast<real_t>(rVal) };
 			}, l.value, r.value);
 		}
 		friend Number operator-(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
-				return Number{ lVal - rVal };
+				return Number{ static_cast<real_t>(lVal) - static_cast<real_t>(rVal) };
 			}, l.value, r.value);
 		}
-
-		friend Number& operator/=(Number& l, const Number& r)
+		friend Number operator%(const Number& l, const Number& r)
 		{
-			std::visit([](auto& lVal, auto&& rVal) {
-				lVal /= rVal;
+			return std::visit([](auto&& lVal, auto&& rVal) {
+				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, int_t> && std::same_as<std::decay_t<decltype(rVal)>, int_t>)
+					return Number{ lVal % rVal };
+				else return Number{ fmodl(lVal, rVal) };
 			}, l.value, r.value);
-			return l;
-		}
-		friend Number& operator*=(Number& l, const Number& r)
-		{
-			std::visit([](auto& lVal, auto&& rVal) {
-				lVal *= rVal;
-			}, l.value, r.value);
-			return l;
-		}
-		friend Number& operator+=(Number& l, const Number& r)
-		{
-			std::visit([](auto& lVal, auto&& rVal) {
-				lVal += rVal;
-			}, l.value, r.value);
-			return l;
-		}
-		friend Number& operator-=(Number& l, const Number& r)
-		{
-			std::visit([](auto& lVal, auto&& rVal) {
-				lVal -= rVal;
-			}, l.value, r.value);
-			return l;
 		}
 
 		template<var::numeric T>
