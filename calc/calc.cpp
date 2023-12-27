@@ -92,6 +92,13 @@ struct print_help {
 int main(const int argc, char** argv)
 {
 	using namespace calc;
+	using namespace calc::expr;
+	using namespace calc::expr::tkn;
+
+	vtoken vt{};
+
+	vt.isAnyType(PrimitiveTokenType::Add, PrimitiveTokenType::Subtract);
+
 
 	FunctionMap fnmap;
 

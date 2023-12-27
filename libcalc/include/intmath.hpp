@@ -89,4 +89,16 @@ namespace calc {
 		}
 	}
 
+	int64_t imax(int64_t a, int64_t b)
+	{
+		return a < b
+			? b
+			: a;
+	}
+	int64_t imin(int64_t a, int64_t b)
+	{
+		return a < b
+			? a
+			: b;
+	}
 }

@@ -89,20 +89,6 @@ namespace calc {
 		/// @returns	true when the underlying type is a floating-point; otherwise, false.
 		constexpr bool is_real() const noexcept { return is_type<real_t>(); }
 
-		template<var::any_same_or_convertible<int_t, real_t> T>
-		friend bool operator==(const Number& l, const T r)
-		{
-			return std::visit([](auto&& value, auto&& r) {
-				return value == r;
-							  }, l.value, r);
-		}
-		template<var::any_same_or_convertible<int_t, real_t> T>
-		friend bool operator!=(const Number& l, const T r)
-		{
-			return std::visit([](auto&& value, auto&& r) {
-				return value != r;
-							  }, l.value, r);
-		}
 		friend bool operator==(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
@@ -114,6 +100,60 @@ namespace calc {
 			return std::visit([](auto&& lVal, auto&& rVal) {
 				return lVal != rVal;
 							  }, l.value, r.value);
+		}
+
+		friend Number operator/(const Number& l, const Number& r)
+		{
+			return std::visit([](auto&& lVal, auto&& rVal) {
+				return Number{ lVal / rVal };
+			}, l.value, r.value);
+		}
+		friend Number operator*(const Number& l, const Number& r)
+		{
+			return std::visit([](auto&& lVal, auto&& rVal) {
+				return Number{ lVal * rVal };
+			}, l.value, r.value);
+		}
+		friend Number operator+(const Number& l, const Number& r)
+		{
+			return std::visit([](auto&& lVal, auto&& rVal) {
+				return Number{ lVal + rVal };
+			}, l.value, r.value);
+		}
+		friend Number operator-(const Number& l, const Number& r)
+		{
+			return std::visit([](auto&& lVal, auto&& rVal) {
+				return Number{ lVal - rVal };
+			}, l.value, r.value);
+		}
+
+		friend Number& operator/=(Number& l, const Number& r)
+		{
+			std::visit([](auto& lVal, auto&& rVal) {
+				lVal /= rVal;
+			}, l.value, r.value);
+			return l;
+		}
+		friend Number& operator*=(Number& l, const Number& r)
+		{
+			std::visit([](auto& lVal, auto&& rVal) {
+				lVal *= rVal;
+			}, l.value, r.value);
+			return l;
+		}
+		friend Number& operator+=(Number& l, const Number& r)
+		{
+			std::visit([](auto& lVal, auto&& rVal) {
+				lVal += rVal;
+			}, l.value, r.value);
+			return l;
+		}
+		friend Number& operator-=(Number& l, const Number& r)
+		{
+			std::visit([](auto& lVal, auto&& rVal) {
+				lVal -= rVal;
+			}, l.value, r.value);
+			return l;
 		}
 
 		template<var::numeric T>
