@@ -11,6 +11,7 @@ X(Equal)					\
 X(Colon)					\
 X(Semicolon)				\
 X(Operator)					\
+X(Underscore)				\
 X(Alpha)					\
 X(IntNumber)				\
 X(RealNumber)				\

@@ -1,6 +1,8 @@
 #pragma once
 #include "token.hpp"
+#include "../OperatorPrecedence.hpp"
 #include "../settings.h"
+#include "../FunctionMap.hpp"
 
 #include <var.hpp>				//< for concepts
 #include <charcompare.hpp>		//< for stdpred noexcept
@@ -18,6 +20,7 @@ namespace calc::expr::tkn {
 		const_iterator begin;
 		const_iterator end;
 		const_iterator current;
+		FunctionMap const* const functionMap{ nullptr };
 
 		template<size_t INDENT = 10, var::streamable... Ts>
 		std::string make_error_message_from(const_iterator const& iterator, std::string const& tokenErrorMessage, Ts&&... message)
@@ -46,10 +49,11 @@ namespace calc::expr::tkn {
 			return ss.str();
 		}
 
+		/// @returns	true when functionName is a function in the functionMap; otherwise, false.
 		bool isFunctionName(std::string const& functionName) const noexcept
 		{
-			// TODO: Implement this
-			return true;
+			return functionMap != nullptr
+				&& functionMap->isFunction(functionName);
 		}
 
 		/// @brief					Checks if the iterator has reached the end of the available lexemes
@@ -168,7 +172,7 @@ namespace calc::expr::tkn {
 			return end;
 		}
 
-		std::vector<primitive> getNextPrimitivesFrom(const_iterator& iterator)
+		std::vector<primitive> getNextPrimitivesFrom(const_iterator& iterator, primitive const* const previousPrimitive)
 		{
 			const auto lex{ *iterator };
 
@@ -186,7 +190,9 @@ namespace calc::expr::tkn {
 					return{ { PrimitiveTokenType::Add, lex } };
 				case '-': {
 					if (const auto& next{ (iterator + 1) };
-						next != end && lex.isAdjacentTo(*next)) {
+						next != end && (previousPrimitive == nullptr
+						|| previousPrimitive->type == PrimitiveTokenType::TermSeparator
+						|| OperatorPrecedence::IsOperator(previousPrimitive->type))) {
 						// handle negative numbers
 						switch (next->type) {
 						case LexemeType::IntNumber:
@@ -236,7 +242,7 @@ namespace calc::expr::tkn {
 				case '&':
 					return{ { PrimitiveTokenType::BitAND, lex } };
 				case '^':
-					return{ { settings.enableBitwiseXOR ? PrimitiveTokenType::BitXOR : PrimitiveTokenType::Exponent, lex } };
+					return{ { settings.caretIsExponent ? PrimitiveTokenType::Exponent : PrimitiveTokenType::BitXOR, lex } };
 				case '~':
 					return{ { PrimitiveTokenType::BitNOT, lex } };
 				default:
@@ -278,9 +284,9 @@ namespace calc::expr::tkn {
 				return{ { PrimitiveTokenType::RealNumber, lex } };
 			case LexemeType::Alpha:
 			{ // function or variable
-				if (const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha) };
+				if (const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha, LexemeType::Underscore) };
 					nextNonAlpha != end && nextNonAlpha->type == LexemeType::ParenthesisOpen
-					&& (nextNonAlpha == begin || nextNonAlpha->isAdjacentTo(*(nextNonAlpha - 1)))) {
+					&& isFunctionName(stringify_tokens(iterator, nextNonAlpha))) {
 					// is a function
 					std::vector<primitive> functionSegments{
 						combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
@@ -298,7 +304,7 @@ namespace calc::expr::tkn {
 					// get the lexemes inside of the brackets (if there are any)
 					if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
 						// Recursively tokenize the inner lexemes
-						const auto inner{ primitive_tokenizer{ getRange(nextNonAlpha + 1, paramEndBracket) }.tokenize() }; //< RECURSE
+						const auto inner{ primitive_tokenizer{ getRange(nextNonAlpha + 1, paramEndBracket), functionMap }.tokenize() }; //< RECURSE
 						functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
 					}
 
@@ -331,7 +337,7 @@ namespace calc::expr::tkn {
 
 				tokens.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *iterator });
 
-				const auto inner{ primitive_tokenizer{ getRange(iterator + 1, closeBracket) }.tokenize() };
+				const auto inner{ primitive_tokenizer{ getRange(iterator + 1, closeBracket), functionMap }.tokenize() };
 
 				tokens.insert(tokens.end(), inner.begin(), inner.end());
 
@@ -350,7 +356,7 @@ namespace calc::expr::tkn {
 		}
 
 	public:
-		primitive_tokenizer(std::vector<lexeme> const& lexemes) : lexemes{ lexemes }, begin{ this->lexemes.begin() }, end{ this->lexemes.end() }, current{ this->lexemes.begin() } {}
+		primitive_tokenizer(std::vector<lexeme> const& lexemes, FunctionMap const* functionMap) : lexemes{ lexemes }, begin{ this->lexemes.begin() }, end{ this->lexemes.end() }, current{ this->lexemes.begin() }, functionMap{ functionMap } {}
 
 		/// @brief	Tokenizes the lexeme buffer into a vector of primitive tokens.
 		std::vector<primitive> tokenize()
@@ -365,7 +371,7 @@ namespace calc::expr::tkn {
 			for (; current != end; ++current) {
 				if (current->type == LexemeType::_EOF) break;
 
-				const auto tokens{ getNextPrimitivesFrom(current) };
+				const auto tokens{ getNextPrimitivesFrom(current, vec.empty() ? nullptr : &vec.back()) };
 				vec.insert(vec.end(), tokens.begin(), tokens.end());
 			}
 

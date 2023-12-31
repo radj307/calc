@@ -5,6 +5,6 @@ namespace calc {
 	color::sync csync{};
 
 	static struct {
-		bool enableBitwiseXOR = false;
+		bool caretIsExponent = false;
 	} settings;
 }

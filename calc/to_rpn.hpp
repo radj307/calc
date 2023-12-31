@@ -36,19 +36,34 @@ namespace calc::expr {
 				while (!operators.empty() && operators.top().type != PrimitiveTokenType::ExpressionOpen) {
 					result.emplace_back(operators.top());
 					operators.pop();
+
+					if (operators.empty())
+						throw make_exception("Missing opening bracket!");
 				}
-				//< TODO: if operators.empty(), throw invalid syntax exception
+
+				if (operators.empty())
+					throw make_exception("Invalid brackets!");
 				
 				// pop the ExpressionOpen token that terminated the while loop
 				operators.pop();
+
+				// if this was a function, push the function name
+				if (!operators.empty() && operators.top().type == PrimitiveTokenType::FunctionName) {
+					result.emplace_back(operators.top());
+					operators.pop();
+				}
 				break;
+			case PrimitiveTokenType::TermSeparator:
+				break; //< don't add term separators (',') to the result
 			default:
 				const auto tknPrecedence{ OperatorPrecedence::Get(tkn.type) };
 
+				// pop all of the lower-precedence operators into the result (if any)
 				while (!operators.empty() && OperatorPrecedence::Get(operators.top().type) >= tknPrecedence) {
 					result.emplace_back(operators.top());
 					operators.pop();
 				}
+				// push the higher-precedence operator
 				operators.push(tkn);
 				break;
 			}

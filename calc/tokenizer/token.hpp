@@ -1,7 +1,6 @@
 #pragma once
 #include "types/LexemeType.h"
 #include "types/PrimitiveTokenType.h"
-#include "types/ComplexTokenType.h"
 
 #include <strcore.hpp>			//< for stringify()
 #include <make_exception.hpp>	//< for make_exception()
@@ -12,7 +11,7 @@
 namespace calc::expr::tkn {
 
 	/// @brief	Requires type T to be a valid token type enum.
-	template<typename T> concept token_type = var::any_same<T, LexemeType, PrimitiveTokenType, ComplexTokenType>;
+	template<typename T> concept token_type = var::any_same<T, LexemeType, PrimitiveTokenType>;
 
 	/// @brief	Gets the friendly name of the specified token type value.
 	template<token_type T> std::string get_name(T const& tokenType)
@@ -21,8 +20,6 @@ namespace calc::expr::tkn {
 			return LexemeTypeNames[static_cast<int>(tokenType)];
 		else if constexpr (std::same_as<T, PrimitiveTokenType>)
 			return PrimitiveTokenTypeNames[static_cast<int>(tokenType)];
-		else if constexpr (std::same_as<T, ComplexTokenType>)
-			return ComplexTokenTypeNames[static_cast<int>(tokenType)];
 		else static_assert(token_type<T>, "get_name() does not handle all token types!");
 	}
 
@@ -164,8 +161,6 @@ namespace calc::expr::tkn {
 	using lexeme = basic_token<LexemeType>;
 	/// @brief	A primitive token, one step up from a lexeme.
 	using primitive = basic_token<PrimitiveTokenType>;
-	/// @brief	A complex token, the most advanced kind of token subtype.
-	using complex = basic_token<ComplexTokenType>;
 
 #pragma region combine_tokens
 	/**

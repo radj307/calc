@@ -76,8 +76,9 @@ struct print_help {
 			<< "  Commandline calculator.\n"
 			<< '\n'
 			<< "USAGE:\n"
-			<< "  " << h._executableName << " [OPTIONS] [--] <EXPRESSION>" << '\n'
+			<< "  " << h._executableName << " [OPTIONS] [--] \"<EXPRESSION>\"" << '\n'
 			<< '\n'
+			<< "  NOTE: Wrap expressions that use brackets in quotes, or the brackets will be removed by the shell." << '\n'
 			<< "  NOTE: Negative numbers are interpreted as flags because they start with a dash. To prevent this," << '\n'
 			<< "         specify \"--\" before it on the commandline to disable parsing for all args that follow." << '\n'
 			<< '\n'
@@ -86,9 +87,33 @@ struct print_help {
 			<< "  -v, --version            Prints the current version number, then exits." << '\n'
 			<< '\n'
 			<< "  -d, --debug              Shows verbose output to help with debugging an expression." << '\n'
+			<< "      --functions          Displays a list of all of the functions supported by the current instance." << '\n'
 			;
 	}
 };
+
+template<typename T, class Predicate>
+inline std::vector<std::vector<T>> split_vec(std::vector<T> const& vec, Predicate const& pred)
+{
+	std::vector<std::vector<T>> out;
+	std::vector<T> buf;
+	buf.reserve(vec.size());
+
+	for (auto it{ vec.begin() }, it_end{ vec.end() }; it != it_end; ++it) {
+		if (pred(*it)) {
+			// move the buffer into the output vector
+			out.emplace_back(std::move(buf));
+			buf = {};
+			buf.reserve(vec.size());
+		}
+		else buf.emplace_back(*it);
+	}
+
+	if (!buf.empty())
+		out.emplace_back(std::move(buf));
+
+	return out;
+}
 
 int main(const int argc, char** argv)
 {
@@ -101,8 +126,9 @@ int main(const int argc, char** argv)
 		};
 
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
+		const bool hasPipedInput{ hasPendingDataSTDIN() };
 
-		if (args.empty() || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
+		if ((!hasPipedInput && args.empty()) || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
 			std::cout << print_help(procName.generic_string(), args.getv_any<opt3::Flag, opt3::Option>('h', "help"));
 			return 0;
 		}
@@ -111,13 +137,21 @@ int main(const int argc, char** argv)
 			return 0;
 		}
 
-		std::vector<expr::tkn::primitive> tokens;
+		// load/build the function map
+		FunctionMap fnmap;
 
+		// --functions ; show the table of functions & exit
+		if (args.check<opt3::Option>("functions")) {
+			std::cout << fnmap;
+			return 0;
+		}
+
+		std::vector<expr::tkn::primitive> tokens;
 		{ // read in the expression
 			std::stringstream exprbuf;
 
 			// get input from STDIN (if it exists)
-			if (hasPendingDataSTDIN())
+			if (hasPipedInput)
 				exprbuf << std::cin.rdbuf() << ' ';
 			// get parameters
 			for (const auto& param : args.getv_all<opt3::Parameter>())
@@ -125,15 +159,69 @@ int main(const int argc, char** argv)
 
 			// tokenize the expression
 			tokens = expr::tkn::primitive_tokenizer{
-				expr::tkn::lexer{ std::move(exprbuf)
-			}.get_lexemes() }.tokenize();
+				expr::tkn::lexer{ std::move(exprbuf) }.get_lexemes(),
+				&fnmap
+			}.tokenize();
 		}
 
-		FunctionMap fnmap;
-		std::cout << str::stringify(
-			std::fixed,
-			str::to_string(static_cast<Number::real_t>(expr::evaluate_rpn(expr::to_rpn(tokens), fnmap)), 32, false)
-		) << std::endl;
+		const bool debugExpressions{ args.check_any<opt3::Flag, opt3::Option>('d', "debug") };
+
+		if (debugExpressions) {
+			std::cout << "Args:\n";
+			int i{ 0 };
+			for (const auto& arg : args) {
+				const auto indexStr{ std::to_string(i++) };
+				std::cout << '[' << indexStr << ']' << indent(3, indexStr.size());
+				if (arg.is_type<opt3::Option>()) std::cout << "(Option)" << indent(10, 9);
+				else if (arg.is_type<opt3::Flag>()) std::cout << "(Flag)" << indent(10, 7);
+				else if (arg.is_type<opt3::Parameter>()) std::cout << "(Param)" << indent(10, 8);
+				std::cout << arg.name();
+				if (arg.has_capture())
+					std::cout << ' ' << arg.capture();
+				std::cout << '\n';
+			}
+
+			std::cout << "Tokens:\n";
+			i = 0;
+			for (const auto& tkn : tokens) {
+				const auto indexStr{ std::to_string(i++) };
+				const std::string typeName{ expr::PrimitiveTokenTypeNames[(int)tkn.type] };
+				std::cout << '[' << indexStr << ']' << indent(3, indexStr.size()) << typeName << indent(20, typeName.size()) << tkn << '\n';
+			}
+		}
+
+		std::vector<std::vector<expr::tkn::primitive>> expressions{ split_vec(tokens, [](auto&& tkn) { return tkn.type == expr::PrimitiveTokenType::Separator; }) };
+
+		if (expressions.empty() && !debugExpressions)
+			throw make_exception("Nothing to do!");
+
+		calc::Number result;
+		int i{ 0 };
+		for (const auto& expr : expressions) {
+			const auto rpnExpr{ expr::to_rpn(expr) };
+
+			if (debugExpressions) {
+				std::cout << "Expression " << i++ << " in RPN:\n";
+				int j{ 0 };
+				for (const auto& tkn : rpnExpr) {
+					const auto indexStr{ std::to_string(j++) };
+					const std::string typeName{ expr::PrimitiveTokenTypeNames[(int)tkn.type] };
+					std::cout << "  " << '[' << indexStr << ']' << indent(3, indexStr.size()) << typeName << indent(20, typeName.size() + 2) << tkn << '\n';
+				}
+			}
+
+			try {
+				result = expr::evaluate_rpn(rpnExpr, fnmap);
+			} catch (const std::exception& ex) {
+				throw make_exception("Failed to evaluate expression \"", calc::expr::tkn::stringify_tokens(expr.begin(), expr.end()), "\" due to exception:\n",
+									 indent(10), ex.what());
+			}
+
+			std::cout << 
+				str::to_string(result.cast_to<long double>(), 16, false)
+			 << std::endl;
+			++i;
+		}
 
 		return 0;
 	} catch (const std::exception& ex) {

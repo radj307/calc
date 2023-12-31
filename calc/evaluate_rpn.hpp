@@ -13,6 +13,12 @@
 #include <stack>		//< for std::stack
 
 namespace calc::expr {
+	inline std::string stripWhitespace(std::string str)
+	{
+		str.erase(std::remove_if(str.begin(), str.end(), str::stdpred::isspace), str.end());
+		return str;
+	}
+
 	/**
 	 * @brief				Converts the specified primitive token to a Number.
 	 * @param primitive	  -	A primitive token containing a supported numeric type.
@@ -20,6 +26,8 @@ namespace calc::expr {
 	 */
 	inline Number primitiveToNumber(tkn::primitive const& primitive)
 	{
+		std::string text{ primitive.text };
+		text.erase(std::remove_if(text.begin(), text.end(), [](auto&& c) { return str::stdpred::isspace(c) || c == '_'; }), text.end());
 		switch (primitive.type) {
 		case PrimitiveTokenType::BinaryNumber:
 			// Binary Integral
@@ -36,10 +44,10 @@ namespace calc::expr {
 												: primitive.text, 16);
 		case PrimitiveTokenType::IntNumber:
 			// Decimal Integral
-			return str::tonumber<Number::int_t>(primitive.text, 10);
+			return str::tonumber<Number::int_t>(stripWhitespace(primitive.text), 10);
 		case PrimitiveTokenType::RealNumber:
 			// Decimal Floating-Point
-			return str::tonumber<Number::real_t>(primitive.text, std::chars_format::fixed);
+			return str::tonumber<Number::real_t>(stripWhitespace(primitive.text), std::chars_format::fixed);
 		default:
 			// Unsupported
 			throw make_exception("primitiveToNumber() does not support converting type \"", PrimitiveTokenTypeNames[(int)primitive.type], "\" to Number!");
@@ -49,12 +57,15 @@ namespace calc::expr {
 	inline Number evaluate_rpn(std::vector<tkn::primitive> const& rpn_expression, FunctionMap const& fnMap)
 	{
 		std::stack<Number> operands;
+		bool atLeastOneOperation{ false };
 
 		for (auto const& tkn : rpn_expression) {
 			if (primitiveTypeIsNumber(tkn.type)) {
+				// Number Type
 				operands.push(primitiveToNumber(tkn));
 			}
 			else if (tkn.type == PrimitiveTokenType::FunctionName && fnMap.isFunction(tkn.text)) {
+				// Function Type
 				const auto* const func{ fnMap.get(tkn.text) };
 				if (func == nullptr) // this *shouldn't* be possible, since fnMap.isFunction checks if it exists
 					throw make_exception("evaluate_rpn() failed to retrieve a function pointer for function name \"", tkn.text, "\"");
@@ -67,6 +78,11 @@ namespace calc::expr {
 					params.emplace_back(operands.top());
 					operands.pop();
 				}
+				if (params.size() < paramsCount) {
+					throw make_exception("Function \"", tkn.text, "\" takes ", paramsCount, " operands, but only ", params.size(), (params.size() == 1 ? " was" : " were"), " provided!", str::stringify_if([&params]() { return !params.empty(); }, " (\"", str::stringify_join(params.begin(), params.end(), "\", \""), "\")"));
+				}
+				// reverse the operands so they're in the correct order for the function call
+				std::reverse(params.begin(), params.end());
 
 				// get the result of the function
 				Number result;
@@ -90,17 +106,19 @@ namespace calc::expr {
 
 				// push the function result to the operand stack
 				operands.push(result);
+				atLeastOneOperation = true;
 			}
 			else if (OperatorPrecedence::IsOperator(tkn.type)) {
+				// Operator Type
 				// get right operand
 				if (operands.empty())
-					throw make_exception("Out of operands!");
+					throw make_exception("Operator ", PrimitiveTokenTypeNames[(int)tkn.type], " (\"", tkn.text, "\") takes 2 operands; 0 were provided.");
 				const Number right{ operands.top() };
 				operands.pop();
 
 				// get left operand
 				if (operands.empty())
-					throw make_exception("Out of operands!");
+					throw make_exception("Operator ", PrimitiveTokenTypeNames[(int)tkn.type], " (\"", tkn.text, "\") takes 2 operands; 1 was provided.");
 				const Number left{ operands.top() };
 				operands.pop();
 
@@ -122,13 +140,61 @@ namespace calc::expr {
 				case PrimitiveTokenType::Modulo:
 					result = (left % right);
 					break;
+				case PrimitiveTokenType::Exponent:
+					// doesn't work (?):
+					result = (*fnMap.get("pow"))(left, right);
+					break;
+				case PrimitiveTokenType::BitNOT:
+					// Unary operator (?)
+					break;
+				case PrimitiveTokenType::BitOR:
+					result = left | right;
+					break;
+				case PrimitiveTokenType::BitAND:
+					result = left & right;
+					break;
+				case PrimitiveTokenType::BitXOR:
+					result = left ^ right;
+					break;
 					// TODO: implement remaining operators
+				default:
+					throw make_exception("Operator \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not currently supported.");
 				}
 
 				operands.push(result);
+				atLeastOneOperation = true;
 			}
+			else throw make_exception("Token type \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not currently supported!");
 		}
 
+		if (operands.size() > 1) {
+			// too many operands; throw an exception
+			if (atLeastOneOperation) {
+				const calc::Number result{ operands.top() };
+				operands.pop();
+				const auto unmatchedCount{ operands.size() };
+				std::stringstream ss;
+				for (bool fst{ true }; !operands.empty(); operands.pop()) {
+					if (fst) fst = false;
+					else ss << "\", \"";
+					ss << operands.top();
+				}
+				throw make_exception("Expression evaluated to \"", result, "\", but there were ", unmatchedCount, " unmatched operands: \"", ss.str(), "\"!");
+			}
+			else {
+				const auto count{ operands.size() };
+				std::stringstream ss;
+				for (bool fst{ true }; !operands.empty(); operands.pop()) {
+					if (fst) fst = false;
+					else ss << "\', \'";
+					ss << operands.top();
+				}
+				throw make_exception("No operators were specified, but the expression contained ", count, " operands: \'", ss.str(), "\'!");
+			}
+		}
+		else if (operands.empty())
+			throw make_exception("Invalid expression! (No operands)");
+		// success
 		return operands.top();
 	}
 }

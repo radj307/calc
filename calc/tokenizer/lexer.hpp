@@ -234,7 +234,7 @@ namespace calc::expr::tkn {
 			if (eof() || c == EOF)
 				return{ LexemeType::_EOF, pos, c };
 			// alpha
-			else if (str::stdpred::isalpha(c) || c == '_')
+			else if (str::stdpred::isalpha(c))
 				return{ LexemeType::Alpha, pos, c }; //< don't coalesce alpha; we'll do that during expression resolution
 			// numbers
 			else if (str::stdpred::isdigit(c)) {
@@ -249,7 +249,7 @@ namespace calc::expr::tkn {
 				c = peekNextChar();
 
 				if (good()) {
-					// Only numbers that start with zero can be binary or hex; see "0b"/"0x"; 
+					// Only numbers that start with zero can be binary or hex (see below for octal); see "0b"/"0x"; 
 					if (startsWithZero) {
 						// handle binary numbers
 						if (c == 'b') {
@@ -347,6 +347,8 @@ namespace calc::expr::tkn {
 			case '^': // bitwise XOR
 			case '~': // bitwise NOT
 				return{ LexemeType::Operator, pos, c };
+			case '_':
+				return{ LexemeType::Underscore, pos, c };
 			case ' ': case '\t': case '\v': case '\r': case '\n':
 				goto GET_NEXT_LEXEME; //< skip whitespace characters
 			case '.':
