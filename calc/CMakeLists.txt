@@ -50,12 +50,4 @@ target_include_directories(calc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/rc")
 
 target_sources(calc PUBLIC "${HEADERS}")
 
-# Fetch BFP (Posits)
-#include(FetchContent)
-#FetchContent_Declare(
-#	bfp
-#	GIT_REPOSITORY https://github.com/libcg/bfp
-
-#)
-
 target_link_libraries(calc PRIVATE libcalc TermAPI filelib strlib)
