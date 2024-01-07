@@ -98,36 +98,27 @@ namespace calc {
 			return std::visit([](auto&& lVal, auto&& rVal) { return lVal != rVal; }, l.value, r.value);
 		}
 
+		/// @brief	Addition operator
 		friend Number operator+(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) {
-				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, std::decay_t<decltype(rVal)>>)
-				return Number{ lVal + rVal }; //< lVal & rVal are both the same
-				else return Number{ static_cast<real_t>(lVal) + static_cast<real_t>(rVal) };
-							  }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) + static_cast<long double>(r) }; }, l.value, r.value);
 		}
+		/// @brief	Subtraction operator
 		friend Number operator-(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) {
-				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, std::decay_t<decltype(rVal)>>)
-				return Number{ lVal - rVal }; //< lVal & rVal are both the same
-				else return Number{ static_cast<real_t>(lVal) - static_cast<real_t>(rVal) };
-							  }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) - static_cast<long double>(r) }; }, l.value, r.value);
 		}
+		/// @brief	Multiplication operator
 		friend Number operator*(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) {
-				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, std::decay_t<decltype(rVal)>>)
-				return Number{ lVal * rVal }; //< lVal & rVal are both the same
-				else return Number{ static_cast<real_t>(lVal) * static_cast<real_t>(rVal) };
-							  }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) * static_cast<long double>(r) }; }, l.value, r.value);
 		}
+		/// @brief	Division operator
 		friend Number operator/(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) {
-				return Number{ static_cast<long double>(lVal) / static_cast<long double>(rVal) };
-							  }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) / static_cast<long double>(r) }; }, l.value, r.value);
 		}
+		/// @brief	Modulo operator
 		friend Number operator%(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
@@ -136,6 +127,7 @@ namespace calc {
 				else return Number{ fmodl(lVal, rVal) };
 							  }, l.value, r.value);
 		}
+		/// @brief	Bitwise OR operator
 		friend Number operator|(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
@@ -145,23 +137,32 @@ namespace calc {
 			else throw make_exception("Operator | (OR) requires integral type.");
 							  }, l.value, r.value);
 		}
+		/// @brief	Bitwise AND operator
 		friend Number operator&(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
 				using Tl = std::decay_t<decltype(lVal)>;
-			if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, int_t>)
-				return Number{ lVal & rVal };
-			else throw make_exception("Operator & (AND) requires integral type.");
-							  }, l.value, r.value);
+				if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, int_t>)
+					return Number{ lVal & rVal };
+				else throw make_exception("Operator & (AND) requires integral type.");
+			}, l.value, r.value);
 		}
+		/// @brief	Bitwise XOR operator
 		friend Number operator^(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
-				using Tl = std::decay_t<decltype(lVal)>;
-			if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, int_t>)
-				return Number{ lVal ^ rVal };
-			else throw make_exception("Operator ^ (XOR) requires integral type.");
-							  }, l.value, r.value);
+				if constexpr (std::integral<std::decay_t<decltype(lVal)>> && std::integral<std::decay_t<decltype(rVal)>>)
+					return Number{ lVal ^ rVal };
+				else return Number{ static_cast<long long>(lVal) ^ static_cast<long long>(rVal) };
+			}, l.value, r.value);
+		}
+		friend Number operator~(const Number& n)
+		{
+			return std::visit([](auto&& n) {
+				if constexpr (std::integral<std::decay_t<decltype(n)>>)
+				return Number{ ~n };
+				else return Number{ ~static_cast<long long>(n) };
+							  }, n.value);
 		}
 
 		template<var::numeric T>

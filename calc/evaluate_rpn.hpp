@@ -54,12 +54,24 @@ namespace calc::expr {
 		}
 	}
 
-	inline Number evaluate_rpn(std::vector<tkn::primitive> const& rpn_expression, FunctionMap const& fnMap)
+	template<typename T>
+	constexpr T pop(std::stack<T>& stack)
+	{
+		const auto top{ stack.top() };
+		stack.pop();
+		return top;
+	}
+
+	inline Number evaluate_rpn(std::vector<tkn::primitive> const& rpn_expression, FunctionMap const& fnMap, VarMap& vars)
 	{
 		std::stack<Number> operands;
 		bool atLeastOneOperation{ false };
+		bool foundSetter{ false };
 
-		for (auto const& tkn : rpn_expression) {
+		for (auto it{ rpn_expression.begin() }, it_end{ rpn_expression.end() };
+			 it != it_end;
+			 ++it) {
+			const auto tkn{ *it };
 			if (primitiveTypeIsNumber(tkn.type)) {
 				// Number Type
 				operands.push(primitiveToNumber(tkn));
@@ -68,7 +80,7 @@ namespace calc::expr {
 				// Function Type
 				const auto* const func{ fnMap.get(tkn.text) };
 				if (func == nullptr) // this *shouldn't* be possible, since fnMap.isFunction checks if it exists
-					throw make_exception("evaluate_rpn() failed to retrieve a function pointer for function name \"", tkn.text, "\"");
+					throw make_exception("evaluate_rpn() failed to retrieve a valid function pointer for \"", tkn.text, "\"; this is a bug, please report it!");
 				const auto paramsCount{ func->getParamsCount() };
 
 				// pop the required number of parameters from the stack
@@ -108,55 +120,75 @@ namespace calc::expr {
 				operands.push(result);
 				atLeastOneOperation = true;
 			}
-			else if (OperatorPrecedence::IsOperator(tkn.type)) {
-				// Operator Type
-				// get right operand
-				if (operands.empty())
-					throw make_exception("Operator ", PrimitiveTokenTypeNames[(int)tkn.type], " (\"", tkn.text, "\") takes 2 operands; 0 were provided.");
-				const Number right{ operands.top() };
-				operands.pop();
-
-				// get left operand
-				if (operands.empty())
-					throw make_exception("Operator ", PrimitiveTokenTypeNames[(int)tkn.type], " (\"", tkn.text, "\") takes 2 operands; 1 was provided.");
-				const Number left{ operands.top() };
-				operands.pop();
-
+			else {
 				// evaluate result
 				Number result{};
+				/*/
+				 * NOTE
+				 * ====
+				 * Pop the right-most operand first!
+				/*/
 				switch (tkn.type) {
-				case PrimitiveTokenType::Add:
-					result = (left + right);
+				case PrimitiveTokenType::Add: {
+					const auto right{ pop(operands) };
+					result = pop(operands) + right;
 					break;
-				case PrimitiveTokenType::Subtract:
-					result = (left - right);
+				}
+				case PrimitiveTokenType::Subtract: {
+					const auto right{ pop(operands) };
+					result = pop(operands) - right;
 					break;
-				case PrimitiveTokenType::Multiply:
-					result = (left * right);
+				}
+				case PrimitiveTokenType::Multiply: {
+					const auto right{ pop(operands) };
+					result = pop(operands) * right;
 					break;
-				case PrimitiveTokenType::Divide:
-					result = (left / right);
+				}
+				case PrimitiveTokenType::Divide: {
+					const auto right{ pop(operands) };
+					result = pop(operands) / right;
 					break;
-				case PrimitiveTokenType::Modulo:
-					result = (left % right);
+				}
+				case PrimitiveTokenType::Modulo: {
+					const auto right{ pop(operands) };
+					result = pop(operands) % right;
 					break;
-				case PrimitiveTokenType::Exponent:
+				}
+				case PrimitiveTokenType::Exponent: {
 					// doesn't work (?):
-					result = (*fnMap.get("pow"))(left, right);
+					const auto right{ pop(operands) };
+					result = (*fnMap.get("pow"))(pop(operands), right);
 					break;
-				case PrimitiveTokenType::BitNOT:
-					// Unary operator (?)
+				}
+				case PrimitiveTokenType::BitNOT: {
+					result = ~pop(operands);
 					break;
-				case PrimitiveTokenType::BitOR:
-					result = left | right;
+				}
+				case PrimitiveTokenType::BitOR: {
+					const auto right{ pop(operands) };
+					result = pop(operands) | right;
 					break;
-				case PrimitiveTokenType::BitAND:
-					result = left & right;
+				}
+				case PrimitiveTokenType::BitAND: {
+					const auto right{ pop(operands) };
+					result = pop(operands) & right;
 					break;
-				case PrimitiveTokenType::BitXOR:
-					result = left ^ right;
+				}
+				case PrimitiveTokenType::BitXOR: {
+					const auto right{ pop(operands) };
+					result = pop(operands) ^ right;
 					break;
-					// TODO: implement remaining operators
+				}
+				case PrimitiveTokenType::Variable:
+					if (foundSetter)
+						operands.push(vars[tkn.text] = pop(operands));
+					else if (vars.isDefined(tkn.text))
+						operands.push(vars[tkn.text]);
+					else throw make_exception("Variable \"", tkn.text, "\" is undefined!");
+					continue;
+				case PrimitiveTokenType::Setter:
+					foundSetter = true;
+					continue;
 				default:
 					throw make_exception("Operator \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not currently supported.");
 				}
@@ -164,7 +196,6 @@ namespace calc::expr {
 				operands.push(result);
 				atLeastOneOperation = true;
 			}
-			else throw make_exception("Token type \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not currently supported!");
 		}
 
 		if (operands.size() > 1) {

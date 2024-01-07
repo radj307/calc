@@ -190,15 +190,12 @@ int main(const int argc, char** argv)
 			}
 		}
 
-		// split the expression by separator characters
 		std::vector<std::vector<expr::tkn::primitive>> expressions{ split_vec(tokens, [](auto&& tkn) { return tkn.type == expr::PrimitiveTokenType::Separator; }) };
 
-		// exit with error if there is nothing to evaluate
 		if (expressions.empty() && !debugExpressions)
 			throw make_exception("Nothing to do!");
 
 		if (debugExpressions) {
-			// print out all of the tokens in each expression as written
 			for (size_t i{ 0 }, i_max{ expressions.size() }; i < i_max; ++i) {
 				for (const auto& rpnExpr : expressions) {
 					std::cout << "Expression " << i++ << ":\n";
@@ -212,19 +209,15 @@ int main(const int argc, char** argv)
 			}
 		}
 
-		// create the table of variables
 		VarMap variables;
 
-		// enumerate each expression, convert to RPN, and evaluate
 		calc::Number result;
 		int i{ 0 };
 		for (const auto& expr : expressions) {
 			try {
-				// convert to RPN
 				const auto rpnExpr{ expr::to_rpn(expr) };
 
 				if (debugExpressions) {
-					// print the expression in RPN
 					std::cout << "Expression " << i++ << " in RPN:\n";
 					int j{ 0 };
 					for (const auto& tkn : rpnExpr) {
@@ -234,10 +227,8 @@ int main(const int argc, char** argv)
 					}
 				}
 
-				// evaluate the result
 				result = expr::evaluate_rpn(rpnExpr, fnmap, variables);
 
-				// print to the console
 				std::cout
 					<< str::to_string(result.cast_to<long double>(), 16, false)
 					<< std::endl;

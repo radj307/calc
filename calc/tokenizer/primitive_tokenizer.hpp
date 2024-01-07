@@ -286,7 +286,7 @@ namespace calc::expr::tkn {
 			{ // function or variable
 				if (const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha, LexemeType::Underscore) };
 					nextNonAlpha != end && nextNonAlpha->type == LexemeType::ParenthesisOpen
-					&& isFunctionName(stringify_tokens(iterator, nextNonAlpha))) {
+					&& isFunctionName(stringify_tokens<false>(iterator, nextNonAlpha))) {
 					// is a function
 					std::vector<primitive> functionSegments{
 						combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
@@ -321,6 +321,9 @@ namespace calc::expr::tkn {
 					for (; current != nextNonAlpha; ++current) {
 						variables.emplace_back(primitive{ PrimitiveTokenType::Variable, *current });
 					}
+
+					--current;
+
 					// no need to shrink since the returned vector is temporary
 					return std::move(variables);
 				}

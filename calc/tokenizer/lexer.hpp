@@ -346,6 +346,7 @@ namespace calc::expr::tkn {
 			case '&': // bitwise AND
 			case '^': // bitwise XOR
 			case '~': // bitwise NOT
+			case '`': // bitwise NOT
 				return{ LexemeType::Operator, pos, c };
 			case '_':
 				return{ LexemeType::Underscore, pos, c };

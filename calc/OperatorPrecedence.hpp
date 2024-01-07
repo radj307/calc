@@ -40,6 +40,7 @@ namespace calc::expr {
 		virtual ~OperatorPrecedence() = 0;
 	};
 	inline const std::map<PrimitiveTokenType, uint8_t> OperatorPrecedence::map{
+		std::make_pair(PrimitiveTokenType::Setter, 5),
 		// [F] Functions
 		std::make_pair(PrimitiveTokenType::Factorial, 4),
 		std::make_pair(PrimitiveTokenType::FunctionName, 4),
