@@ -27,4 +27,14 @@ target_sources(libcalc PUBLIC "${HEADERS_ABS}")
 
 target_include_directories(libcalc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-target_link_libraries(libcalc PRIVATE shared)
+# Fetch Boost Multiprecision
+include(FetchContent)
+FetchContent_Declare(
+	Boost
+	GIT_REPOSITORY	https://github.com/boostorg/multiprecision.git
+	GIT_TAG			Boost_1_84_0
+)
+
+FetchContent_MakeAvailable(Boost)
+
+target_link_libraries(libcalc PUBLIC shared Boost::multiprecision)
