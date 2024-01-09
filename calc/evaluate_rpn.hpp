@@ -2,6 +2,7 @@
 #include "tokenizer/token.hpp"
 #include "OperatorPrecedence.hpp"
 #include "FunctionMap.hpp"
+#include "VarMap.hpp"
 
 // libcalc
 #include <Number.hpp>	//< for calc::Number
@@ -66,17 +67,12 @@ namespace calc::expr {
 	{
 		std::stack<Number> operands;
 		bool atLeastOneOperation{ false };
-		bool foundSetter{ false };
 
 		for (auto it{ rpn_expression.begin() }, it_end{ rpn_expression.end() };
 			 it != it_end;
 			 ++it) {
 			const auto tkn{ *it };
-			if (primitiveTypeIsNumber(tkn.type)) {
-				// Number Type
-				operands.push(primitiveToNumber(tkn));
-			}
-			else if (tkn.type == PrimitiveTokenType::FunctionName && fnMap.isFunction(tkn.text)) {
+			if (tkn.type == PrimitiveTokenType::FunctionName && fnMap.isFunction(tkn.text)) {
 				// Function Type
 				const auto* const func{ fnMap.get(tkn.text) };
 				if (func == nullptr) // this *shouldn't* be possible, since fnMap.isFunction checks if it exists
@@ -129,6 +125,18 @@ namespace calc::expr {
 				 * Pop the right-most operand first!
 				/*/
 				switch (tkn.type) {
+				case PrimitiveTokenType::BinaryNumber:
+				case PrimitiveTokenType::OctalNumber:
+				case PrimitiveTokenType::HexNumber:
+				case PrimitiveTokenType::IntNumber:
+				case PrimitiveTokenType::RealNumber:
+					result = primitiveToNumber(tkn);
+					break;
+				case PrimitiveTokenType::Variable:
+					if (vars.isDefined(tkn.text))
+						result = vars[tkn.text];
+					else throw make_exception("Variable \"", tkn.text, "\" is undefined!");
+					break;
 				case PrimitiveTokenType::Add: {
 					const auto right{ pop(operands) };
 					result = pop(operands) + right;
@@ -179,16 +187,6 @@ namespace calc::expr {
 					result = pop(operands) ^ right;
 					break;
 				}
-				case PrimitiveTokenType::Variable:
-					if (foundSetter)
-						operands.push(vars[tkn.text] = pop(operands));
-					else if (vars.isDefined(tkn.text))
-						operands.push(vars[tkn.text]);
-					else throw make_exception("Variable \"", tkn.text, "\" is undefined!");
-					continue;
-				case PrimitiveTokenType::Setter:
-					foundSetter = true;
-					continue;
 				default:
 					throw make_exception("Operator \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not currently supported.");
 				}

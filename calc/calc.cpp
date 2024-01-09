@@ -218,14 +218,43 @@ int main(const int argc, char** argv)
 		// enumerate each expression, convert to RPN, and evaluate
 		calc::Number result;
 		int i{ 0 };
-		for (const auto& expr : expressions) {
+		std::optional<expr::tkn::primitive> setVariable{ std::nullopt }; //< contains variable that is being set, if any
+		for (auto it{ expressions.begin() }, it_end{ expressions.end() };
+			 it != it_end;
+			 ++it, setVariable = std::nullopt, ++i) {
+			auto expr{ *it };
+
+			// check if this is a variable setter before converting to RPN
+			if (expr.size() >= 2
+				&& expr.at(0).type == expr::PrimitiveTokenType::Variable
+				&& expr.at(1).type == expr::PrimitiveTokenType::Setter) {
+				// is a variable setter, not an actual expression
+				setVariable = expr.at(0);
+				// erase the first and second tokens
+				expr.erase(expr.begin(), expr.begin() + 2);
+
+				if (expr.empty()) {
+					// set variable to undefined & continue
+					const auto varName{ setVariable.value().text };
+					variables.erase(varName);
+
+					if (debugExpressions) {
+						// print that the variable was set to undefined
+						std::cout << "Expression " << i << " set \"" << varName << "\" to undefined\n";
+					}
+
+					continue;
+				}
+			}
+
+			// evaluate the remaining expression
 			try {
 				// convert to RPN
 				const auto rpnExpr{ expr::to_rpn(expr) };
 
 				if (debugExpressions) {
 					// print the expression in RPN
-					std::cout << "Expression " << i++ << " in RPN:\n";
+					std::cout << "Expression " << i << " in RPN:\n";
 					int j{ 0 };
 					for (const auto& tkn : rpnExpr) {
 						const auto indexStr{ std::to_string(j++) };
@@ -236,11 +265,6 @@ int main(const int argc, char** argv)
 
 				// evaluate the result
 				result = expr::evaluate_rpn(rpnExpr, fnmap, variables);
-
-				// print to the console
-				std::cout
-					<< str::to_string(result.cast_to<long double>(), 16, false)
-					<< std::endl;
 			} catch (const std::exception& ex) {
 				std::cerr
 					<< csync.get_error()
@@ -250,8 +274,24 @@ int main(const int argc, char** argv)
 					<< indent(10)
 					<< ex.what()
 					<< '\n';
+				continue;
 			}
-			++i;
+
+			if (setVariable.has_value()) {
+				// set the variable's value
+				const auto varName{ setVariable.value().text };
+				variables[varName] = result;
+
+				if (debugExpressions) {
+					std::cout << "Expression " << i << " set variable \"" << varName << "\" to " << result << '\n';
+				}
+			}
+			else {
+				// print to the console
+				std::cout
+					<< str::to_string(result.cast_to<long double>(), 16, false)
+					<< std::endl;
+			}
 		}
 
 		return 0;

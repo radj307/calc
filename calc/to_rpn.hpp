@@ -28,6 +28,7 @@ namespace calc::expr {
 			case PrimitiveTokenType::HexNumber: //< HEX INTEGRAL
 			case PrimitiveTokenType::IntNumber: //< INTEGRAL
 			case PrimitiveTokenType::RealNumber: //< FLOATING-POINT
+			case PrimitiveTokenType::Variable: //< VARIABLE
 				result.emplace_back(tkn);
 				break;
 			case PrimitiveTokenType::ExpressionOpen: // '('
@@ -45,7 +46,7 @@ namespace calc::expr {
 
 				if (operators.empty())
 					throw make_exception("Invalid brackets!");
-				
+
 				// pop the ExpressionOpen token that terminated the while loop
 				operators.pop();
 
@@ -57,7 +58,8 @@ namespace calc::expr {
 				break;
 			case PrimitiveTokenType::TermSeparator:
 				break; //< don't add term separators (',') to the result
-			default:
+			default: {
+				// operators:
 				const auto tknPrecedence{ OperatorPrecedence::Get(tkn.type) };
 
 				// pop all of the lower-precedence operators into the result (if any)
@@ -68,6 +70,7 @@ namespace calc::expr {
 				// push the higher-precedence operator
 				operators.push(tkn);
 				break;
+			}
 			}
 		}
 
