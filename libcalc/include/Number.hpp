@@ -122,7 +122,7 @@ namespace calc {
 		friend Number operator%(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) {
-				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, int_t> && std::same_as<std::decay_t<decltype(lVal)>, std::decay_t<decltype(rVal)>>)
+				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, long long> && std::same_as<std::decay_t<decltype(lVal)>, std::decay_t<decltype(rVal)>>)
 				return Number{ lVal % rVal }; //< lVal & rVal are both int
 				else return Number{ fmodl(lVal, rVal) };
 							  }, l.value, r.value);
@@ -132,7 +132,7 @@ namespace calc {
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
 				using Tl = std::decay_t<decltype(lVal)>;
-			if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, int_t>)
+			if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, long long>)
 				return Number{ lVal | rVal };
 			else throw make_exception("Operator | (OR) requires integral type.");
 							  }, l.value, r.value);
@@ -142,7 +142,7 @@ namespace calc {
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
 				using Tl = std::decay_t<decltype(lVal)>;
-				if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, int_t>)
+				if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, long long>)
 					return Number{ lVal & rVal };
 				else throw make_exception("Operator & (AND) requires integral type.");
 			}, l.value, r.value);
