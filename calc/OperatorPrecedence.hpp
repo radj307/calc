@@ -39,8 +39,8 @@ namespace calc::expr {
 	private:
 		virtual ~OperatorPrecedence() = 0;
 	};
+	// higher values have higher precedence
 	inline const std::map<PrimitiveTokenType, uint8_t> OperatorPrecedence::map{
-		std::make_pair(PrimitiveTokenType::Setter, 5),
 		// [F] Functions
 		std::make_pair(PrimitiveTokenType::Factorial, 4),
 		std::make_pair(PrimitiveTokenType::FunctionName, 4),

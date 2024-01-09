@@ -1,8 +1,10 @@
 #pragma once
+// calc
 #include "tokenizer/token.hpp"
 #include "OperatorPrecedence.hpp"
 #include "FunctionMap.hpp"
 #include "VarMap.hpp"
+#include "stack_helpers.h"
 
 // libcalc
 #include <Number.hpp>	//< for calc::Number
@@ -10,7 +12,7 @@
 // 307lib
 #include <strcore.hpp>	//< for str::tonumber
 
-// stl
+// STL
 #include <stack>		//< for std::stack
 
 namespace calc::expr {
@@ -53,14 +55,6 @@ namespace calc::expr {
 			// Unsupported
 			throw make_exception("primitiveToNumber() does not support converting type \"", PrimitiveTokenTypeNames[(int)primitive.type], "\" to Number!");
 		}
-	}
-
-	template<typename T>
-	constexpr T pop(std::stack<T>& stack)
-	{
-		const auto top{ stack.top() };
-		stack.pop();
-		return top;
 	}
 
 	inline Number evaluate_rpn(std::vector<tkn::primitive> const& rpn_expression, FunctionMap const& fnMap, VarMap& vars)
@@ -138,53 +132,53 @@ namespace calc::expr {
 					else throw make_exception("Variable \"", tkn.text, "\" is undefined!");
 					break;
 				case PrimitiveTokenType::Add: {
-					const auto right{ pop(operands) };
-					result = pop(operands) + right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) + right;
 					break;
 				}
 				case PrimitiveTokenType::Subtract: {
-					const auto right{ pop(operands) };
-					result = pop(operands) - right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) - right;
 					break;
 				}
 				case PrimitiveTokenType::Multiply: {
-					const auto right{ pop(operands) };
-					result = pop(operands) * right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) * right;
 					break;
 				}
 				case PrimitiveTokenType::Divide: {
-					const auto right{ pop(operands) };
-					result = pop(operands) / right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) / right;
 					break;
 				}
 				case PrimitiveTokenType::Modulo: {
-					const auto right{ pop(operands) };
-					result = pop(operands) % right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) % right;
 					break;
 				}
 				case PrimitiveTokenType::Exponent: {
 					// doesn't work (?):
-					const auto right{ pop(operands) };
-					result = (*fnMap.get("pow"))(pop(operands), right);
+					const auto right{ pop_off(operands) };
+					result = (*fnMap.get("pow"))(pop_off(operands), right);
 					break;
 				}
 				case PrimitiveTokenType::BitNOT: {
-					result = ~pop(operands);
+					result = ~pop_off(operands);
 					break;
 				}
 				case PrimitiveTokenType::BitOR: {
-					const auto right{ pop(operands) };
-					result = pop(operands) | right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) | right;
 					break;
 				}
 				case PrimitiveTokenType::BitAND: {
-					const auto right{ pop(operands) };
-					result = pop(operands) & right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) & right;
 					break;
 				}
 				case PrimitiveTokenType::BitXOR: {
-					const auto right{ pop(operands) };
-					result = pop(operands) ^ right;
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) ^ right;
 					break;
 				}
 				default:
