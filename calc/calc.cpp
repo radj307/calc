@@ -87,8 +87,8 @@ struct print_help {
 			<< '\n'
 			<< "  -d, --debug              Shows the arguments, tokens, and expressions received by the application." << '\n'
 			<< "      --functions          Displays a list of all of the functions supported by the current instance." << '\n'
-			<< '\n'
-			<< "  " << '\n'
+			//<< '\n'
+			//<< "  " << '\n'
 			;
 	}
 };
@@ -101,17 +101,19 @@ int main(const int argc, char** argv)
 
 	try {
 		opt3::ArgManager args{ argc, argv,
-			// argument defs:
+			// capturing argument defs:
 			opt3::make_template(opt3::CaptureStyle::Optional, opt3::ConflictStyle::Conflict, 'h', "help"),
 		};
 
 		const auto& [procPath, procName] { env::PATH{}.resolve_split(argv[0]) };
 		const bool hasPipedInput{ hasPendingDataSTDIN() };
 
+		// -h | --help
 		if ((!hasPipedInput && args.empty()) || args.check_any<opt3::Flag, opt3::Option>('h', "help")) {
 			std::cout << print_help(procName.generic_string(), args.getv_any<opt3::Flag, opt3::Option>('h', "help"));
 			return 0;
 		}
+		// -v | --version
 		else if (args.check_any<opt3::Flag, opt3::Option>('v', "version")) {
 			std::cout << calc_VERSION_EXTENDED << std::endl;
 			return 0;
@@ -121,7 +123,7 @@ int main(const int argc, char** argv)
 		FunctionMap fnmap;
 
 		// functions ; show the table of functions & exit
-		if (args.check<opt3::Option>("functions")) {
+		if (args.check_any<opt3::Option>("functions", "function")) {
 			std::cout << fnmap;
 			return 0;
 		}
@@ -310,6 +312,13 @@ int main(const int argc, char** argv)
 }
 
 inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const& expr)
+/**
+ * @brief							Checks if the specified expression includes only numbers
+ *									 in a specific base, and returns the token type.
+ * @param expr					  -	The expression to get the common numeric type in.
+ * @returns							The common numeric token type when expr contains numbers of
+ *									 one type; otherwise, PrimitiveTokenType::Unknown
+ */
 {
 	using namespace calc::expr;
 	if (expr.empty()) return PrimitiveTokenType::Unknown;
@@ -322,6 +331,7 @@ inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::e
 	}
 
 	if (numbers.empty()) return PrimitiveTokenType::Unknown;
+	else if (numbers.size() == 1) return numbers[0].type;
 
 	return std::all_of(numbers.begin() + 1, numbers.end(), [&numbers](auto&& v) { return v.type == numbers[0].type; })
 		? numbers[0].type
