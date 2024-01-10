@@ -49,6 +49,7 @@ namespace calc::expr {
 		// [DM] Mult/Div
 		std::make_pair(PrimitiveTokenType::Multiply, 2),
 		std::make_pair(PrimitiveTokenType::Divide, 2),
+		std::make_pair(PrimitiveTokenType::Modulo, 2),
 		// [AS] Add/Sub
 		std::make_pair(PrimitiveTokenType::Add, 1),
 		std::make_pair(PrimitiveTokenType::Subtract, 1),

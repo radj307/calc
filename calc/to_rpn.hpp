@@ -80,7 +80,9 @@ namespace calc::expr {
 					throw make_exception("Token type \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not a recognized operator!");
 
 				// pop all of the lower-precedence operators into the result (if any)
-				while (!operators.empty() && OperatorPrecedence::Get(operators.top().type) >= tknPrecedence) {
+				while (!operators.empty() 
+					   && operators.top().type != PrimitiveTokenType::ExpressionOpen
+					   && OperatorPrecedence::Get(operators.top().type) >= tknPrecedence) {
 					result.emplace_back(pop_off(operators));
 				}
 				// push the higher-precedence operator
