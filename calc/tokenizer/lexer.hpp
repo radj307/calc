@@ -232,7 +232,7 @@ namespace calc::expr::tkn {
 
 			// end-of-file (end-of-stream)
 			if (eof() || c == EOF)
-				return{ LexemeType::_EOF, pos, c };
+				return{ LexemeType::_EOF, pos, "" }; //< don't include the actual EOF character, or null terminators may pollute ostreams when re-serializing an expression
 			// alpha
 			else if (str::stdpred::isalpha(c))
 				return{ LexemeType::Alpha, pos, c }; //< don't coalesce alpha; we'll do that during expression resolution

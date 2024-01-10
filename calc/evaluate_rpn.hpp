@@ -188,10 +188,11 @@ namespace calc::expr {
 					default:
 						throw make_exception("Operator \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not currently supported.");
 					}
+
+					atLeastOneOperation = true;
 				}
 
 				operands.push(result);
-				atLeastOneOperation = true;
 			}
 		}
 

@@ -23,28 +23,19 @@ namespace calc::expr::tkn {
 		FunctionMap const* const functionMap{ nullptr };
 
 		template<size_t INDENT = 10, var::streamable... Ts>
-		std::string make_error_message_from(const_iterator const& iterator, std::string const& tokenErrorMessage, Ts&&... message)
+		std::string make_error_message_from(const_iterator const& iterator, Ts&&... message)
 		{
 			std::stringstream ss;
-			(ss << ... << message);
 
-			if (sizeof...(Ts) > 0)
+			const auto expr_str{ stringify_tokens(lexemes.begin(), lexemes.back().type == LexemeType::_EOF ? lexemes.end() - 1 : lexemes.end()) };
+			ss << expr_str << '\n';
+			ss << indent(INDENT) << csync(color::dark_red) << indent(iterator->pos, 0, '~') << csync(color::red) << '^' << csync(color::dark_red) << indent(expr_str.size(), iterator->getEndPos(), '~') << csync() << '\n';
+
+			if (sizeof...(Ts) > 0) {
+				ss << indent(INDENT);
+				(ss << ... << message);
 				ss << '\n';
-
-			// previous token:
-			if (iterator != begin)
-				ss << indent(INDENT) << "Prev. Token: " << (iterator - 1)->get_debug_string() << '\n';
-			else
-				ss << indent(INDENT) << "Prev. Token: (None)" << '\n';
-
-			// error token:
-			ss << indent(INDENT) << "Token:       " << iterator->get_debug_string() << " <--- " << tokenErrorMessage << '\n';
-
-			// next token:
-			if (iterator != end && (iterator + 1) != end)
-				ss << indent(INDENT) << "Next Token:  " << (iterator + 1)->get_debug_string();
-			else
-				ss << indent(INDENT) << "Next Token:  (None)";
+			}
 
 			return ss.str();
 		}
@@ -191,8 +182,8 @@ namespace calc::expr::tkn {
 				case '-': {
 					if (const auto& next{ (iterator + 1) };
 						next != end && (previousPrimitive == nullptr
-						|| previousPrimitive->type == PrimitiveTokenType::TermSeparator
-						|| OperatorPrecedence::IsOperator(previousPrimitive->type))) {
+										|| previousPrimitive->type == PrimitiveTokenType::TermSeparator
+										|| OperatorPrecedence::IsOperator(previousPrimitive->type))) {
 						// handle negative numbers
 						switch (next->type) {
 						case LexemeType::IntNumber:
@@ -299,7 +290,7 @@ namespace calc::expr::tkn {
 					const auto& paramEndBracket{ findEndBracket(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
 
 					if (paramEndBracket == end)
-						throw make_exception(make_error_message_from(nextNonAlpha, "UNMATCHED", "Syntax Error: Function \"", functionSegments.front().text, "\" has unmatched opening bracket!"));
+						throw make_exception(make_error_message_from(nextNonAlpha, "Syntax Error: Function \"", functionSegments.front().text, "\" has unmatched opening bracket!"));
 
 					// get the lexemes inside of the brackets (if there are any)
 					if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
@@ -336,7 +327,7 @@ namespace calc::expr::tkn {
 				const auto closeBracket{ findEndBracket(iterator, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
 
 				if (closeBracket == end)
-					throw make_exception(make_error_message_from(iterator, "UNMATCHED", "Syntax Error: Unmatched opening bracket!"));
+					throw make_exception(make_error_message_from(iterator, "Syntax Error: Unmatched opening bracket!"));
 
 				tokens.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *iterator });
 
@@ -351,7 +342,7 @@ namespace calc::expr::tkn {
 				return tokens;
 			}
 			case LexemeType::ParenthesisClose:
-				throw make_exception(make_error_message_from(iterator, "UNMATCHED", "Syntax Error: Unmatched closing bracket!"));
+				throw make_exception(make_error_message_from(iterator, "Syntax Error: Unmatched closing bracket!"));
 			default:
 				break;
 			}

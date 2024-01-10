@@ -72,7 +72,7 @@ namespace calc::expr::tkn {
 		 * @brief		Gets the (exclusive) ending position of this token.
 		 * @returns		When the text size is greater than 0, the index of directly after this token in the underlying text.
 		 */
-		constexpr auto getEndPos() const noexcept
+		constexpr size_t getEndPos() const noexcept
 		{
 			return pos + text.size();
 		}
@@ -80,7 +80,7 @@ namespace calc::expr::tkn {
 		 * @brief		Gets the (inclusive) ending index of this token.
 		 * @returns		The index of the last character represented by this token when the underlying text isn't empty; otherwise, the token's position.
 		 */
-		constexpr auto getEndIndex() const noexcept
+		constexpr size_t getEndIndex() const noexcept
 		{
 			if (text.size() == 0) return pos;
 			else return pos + text.size() - 1;
