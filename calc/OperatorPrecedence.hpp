@@ -52,5 +52,11 @@ namespace calc::expr {
 		// [AS] Add/Sub
 		std::make_pair(PrimitiveTokenType::Add, 1),
 		std::make_pair(PrimitiveTokenType::Subtract, 1),
+		// Bitwise NOT
+		std::make_pair(PrimitiveTokenType::BitNOT, 1),
+		// Bitwise AND/OR/XOR
+		std::make_pair(PrimitiveTokenType::BitAND, 0),
+		std::make_pair(PrimitiveTokenType::BitOR, 0),
+		std::make_pair(PrimitiveTokenType::BitXOR, 0),
 	};
 }

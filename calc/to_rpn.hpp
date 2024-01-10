@@ -2,11 +2,11 @@
 // calc
 #include "tokenizer/token.hpp"
 #include "OperatorPrecedence.hpp"
-#include "stack_helpers.h"
+#include "helpers/stack_helpers.h"	//< for pop_off
 
 // STL
-#include <stack>
-#include <map>
+#include <stack>	//< for std::stack
+#include <map>		//< for std::map
 
 namespace calc::expr {
 
@@ -75,6 +75,7 @@ namespace calc::expr {
 			default: {
 				// operators:
 				const auto tknPrecedence{ OperatorPrecedence::Get(tkn.type, -1) };
+
 				if (tknPrecedence == (uint8_t)-1)
 					throw make_exception("Token type \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not a recognized operator!");
 

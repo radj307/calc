@@ -89,6 +89,14 @@ namespace calc {
 		/// @returns	true when the underlying type is a floating-point; otherwise, false.
 		constexpr bool is_real() const noexcept { return is_type<real_t>(); }
 
+		/// @brief	Determines if the numeric value is an integral or not.
+		bool has_integral_value() const noexcept
+		{
+			if (is_integer()) return true;
+			const auto v{ std::get<real_t>(value) };
+			return std::truncl(v) == v;
+		}
+
 		friend bool operator==(const Number& l, const Number& r)
 		{
 			return std::visit([](auto&& lVal, auto&& rVal) { return lVal == rVal; }, l.value, r.value);
@@ -121,48 +129,76 @@ namespace calc {
 		/// @brief	Modulo operator
 		friend Number operator%(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) {
-				if constexpr (std::same_as<std::decay_t<decltype(lVal)>, long long> && std::same_as<std::decay_t<decltype(lVal)>, std::decay_t<decltype(rVal)>>)
-				return Number{ lVal % rVal }; //< lVal & rVal are both int
-				else return Number{ fmodl(lVal, rVal) };
-							  }, l.value, r.value);
+			return std::visit([](auto&& lVal, auto&& rVal) { {
+					using Tl = std::decay_t<decltype(lVal)>;
+					using Tr = std::decay_t<decltype(rVal)>;
+
+					if constexpr (std::same_as<Tl, typename Number::int_t> && std::same_as<Tr, typename Number::int_t>)
+						return Number{ lVal % rVal }; //< lVal & rVal are both int
+					else return Number{ fmodl(lVal, rVal) };
+				} }, l.value, r.value);
 		}
 		/// @brief	Bitwise OR operator
 		friend Number operator|(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
-				using Tl = std::decay_t<decltype(lVal)>;
-			if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, long long>)
-				return Number{ lVal | rVal };
-			else throw make_exception("Operator | (OR) requires integral type.");
-							  }, l.value, r.value);
+			if (!l.has_integral_value())
+				throw make_exception("Operator | (BitwiseOR) requires integral types, but the left-side operand was ", std::get<real_t>(l.value), "!");
+			else if (!r.has_integral_value())
+				throw make_exception("Operator | (BitwiseOR) requires integral types, but the right-side operand was ", std::get<real_t>(r.value), "!");
+
+			return std::visit([](auto&& lVal, auto&& rVal) -> Number { {
+					using Tl = std::decay_t<decltype(lVal)>;
+					using Tr = std::decay_t<decltype(rVal)>;
+
+					if constexpr (std::same_as<Tl, typename Number::int_t> && std::same_as<Tr, typename Number::int_t>)
+						return Number{ lVal | rVal }; //< both sides are int
+					else return Number{ static_cast<typename Number::int_t>(lVal) | static_cast<typename Number::int_t>(rVal) };
+				} }, l.value, r.value);
 		}
 		/// @brief	Bitwise AND operator
 		friend Number operator&(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
-				using Tl = std::decay_t<decltype(lVal)>;
-				if constexpr (std::same_as<Tl, std::decay_t<decltype(rVal)>> && std::same_as<Tl, long long>)
-					return Number{ lVal & rVal };
-				else throw make_exception("Operator & (AND) requires integral type.");
-			}, l.value, r.value);
+			if (!l.has_integral_value())
+				throw make_exception("Operator & (BitwiseAND) requires integral types, but the left-side operand was ", std::get<real_t>(l.value), "!");
+			else if (!r.has_integral_value())
+				throw make_exception("Operator & (BitwiseAND) requires integral types, but the right-side operand was ", std::get<real_t>(r.value), "!");
+
+			return std::visit([](auto&& lVal, auto&& rVal) -> Number { {
+					using Tl = std::decay_t<decltype(lVal)>;
+					using Tr = std::decay_t<decltype(rVal)>;
+
+					if constexpr (std::same_as<Tl, typename Number::int_t> && std::same_as<Tr, typename Number::int_t>)
+						return Number{ lVal & rVal }; //< both sides are int
+					else return Number{ static_cast<typename Number::int_t>(lVal) & static_cast<typename Number::int_t>(rVal) };
+				} }, l.value, r.value);
 		}
 		/// @brief	Bitwise XOR operator
 		friend Number operator^(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& lVal, auto&& rVal) -> Number {
-				if constexpr (std::integral<std::decay_t<decltype(lVal)>> && std::integral<std::decay_t<decltype(rVal)>>)
-					return Number{ lVal ^ rVal };
-				else return Number{ static_cast<long long>(lVal) ^ static_cast<long long>(rVal) };
-			}, l.value, r.value);
+			if (!l.has_integral_value())
+				throw make_exception("Operator ^ (BitwiseXOR) requires integral types, but the left-side operand was ", std::get<real_t>(l.value), "!");
+			else if (!r.has_integral_value())
+				throw make_exception("Operator ^ (BitwiseXOR) requires integral types, but the right-side operand was ", std::get<real_t>(r.value), "!");
+
+			return std::visit([](auto&& lVal, auto&& rVal) -> Number { {
+					using Tl = std::decay_t<decltype(lVal)>;
+					using Tr = std::decay_t<decltype(rVal)>;
+
+					if constexpr (std::same_as<Tl, typename Number::int_t> && std::same_as<Tr, typename Number::int_t>)
+						return Number{ lVal ^ rVal }; //< both sides are int
+					else return Number{ static_cast<typename Number::int_t>(lVal) ^ static_cast<typename Number::int_t>(rVal) };
+				} }, l.value, r.value);
 		}
 		friend Number operator~(const Number& n)
 		{
-			return std::visit([](auto&& n) {
-				if constexpr (std::integral<std::decay_t<decltype(n)>>)
-				return Number{ ~n };
-				else return Number{ ~static_cast<long long>(n) };
-							  }, n.value);
+			if (!n.has_integral_value())
+				throw make_exception("Operator ~ (BitwiseNOT) requires integral type!");
+
+			return std::visit([](auto&& n) { {
+					if constexpr (std::same_as<std::decay_t<decltype(n)>, typename Number::int_t>)
+						return Number{ ~n }; //< is int
+					else return Number{ ~static_cast<typename Number::int_t>(n) };
+				} }, n.value);
 		}
 
 		template<var::numeric T>

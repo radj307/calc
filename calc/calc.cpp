@@ -5,6 +5,7 @@
 #include "tokenizer/primitive_tokenizer.hpp"
 #include "to_rpn.hpp"
 #include "evaluate_rpn.hpp"
+#include "helpers/vec_helpers.h"	//< for split_vec
 
 #include "FunctionMap.hpp" //< move this to libcalc
 // libcalc
@@ -17,8 +18,6 @@
 #include <envpath.hpp>				//< for PATH
 #include <hasPendingDataSTDIN.h>	//< for checking piped input
 #include <print_tree.hpp>			//< for print_tree
-
-#include <list>
 
 #include "settings.h" //< for calc global settings
 
@@ -80,40 +79,21 @@ struct print_help {
 			<< '\n'
 			<< "  NOTE: Wrap expressions that use brackets in quotes, or the brackets will be removed by the shell." << '\n'
 			<< "  NOTE: Negative numbers are interpreted as flags because they start with a dash. To prevent this," << '\n'
-			<< "         specify \"--\" before it on the commandline to disable parsing for all args that follow." << '\n'
+			<< "         include an argument terminator \"--\" prior to the expression." << '\n'
 			<< '\n'
 			<< "OPTIONS:\n"
 			<< "  -h, --help [SUBJECT]     Shows this help display, or details about the specified subject, then exits." << '\n'
 			<< "  -v, --version            Prints the current version number, then exits." << '\n'
 			<< '\n'
-			<< "  -d, --debug              Shows verbose output to help with debugging an expression." << '\n'
+			<< "  -d, --debug              Shows the arguments, tokens, and expressions received by the application." << '\n'
 			<< "      --functions          Displays a list of all of the functions supported by the current instance." << '\n'
+			<< '\n'
+			<< "  " << '\n'
 			;
 	}
 };
 
-template<typename T, class Predicate>
-inline std::vector<std::vector<T>> split_vec(std::vector<T> const& vec, Predicate const& pred)
-{
-	std::vector<std::vector<T>> out;
-	std::vector<T> buf;
-	buf.reserve(vec.size());
-
-	for (auto it{ vec.begin() }, it_end{ vec.end() }; it != it_end; ++it) {
-		if (pred(*it)) {
-			// move the buffer into the output vector
-			out.emplace_back(std::move(buf));
-			buf = {};
-			buf.reserve(vec.size());
-		}
-		else buf.emplace_back(*it);
-	}
-
-	if (!buf.empty())
-		out.emplace_back(std::move(buf));
-
-	return out;
-}
+inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const&);
 
 int main(const int argc, char** argv)
 {
@@ -166,6 +146,7 @@ int main(const int argc, char** argv)
 
 		const bool debugExpressions{ args.check_any<opt3::Flag, opt3::Option>('d', "debug") };
 
+	#pragma region Expression Debug
 		if (debugExpressions) {
 			std::cout << "Args:\n";
 			int i{ 0 };
@@ -189,6 +170,7 @@ int main(const int argc, char** argv)
 				std::cout << '[' << indexStr << ']' << indent(3, indexStr.size()) << typeName << indent(20, typeName.size()) << tkn << '\n';
 			}
 		}
+	#pragma endregion Expression Debug
 
 		// split the expression by separator characters
 		std::vector<std::vector<expr::tkn::primitive>> expressions{ split_vec(tokens, [](auto&& tkn) { return tkn.type == expr::PrimitiveTokenType::Separator; }) };
@@ -197,6 +179,7 @@ int main(const int argc, char** argv)
 		if (expressions.empty() && !debugExpressions)
 			throw make_exception("Nothing to do!");
 
+	#pragma region Expression Debug
 		if (debugExpressions) {
 			// print out all of the tokens in each expression as written
 			for (size_t i{ 0 }, i_max{ expressions.size() }; i < i_max; ++i) {
@@ -211,6 +194,7 @@ int main(const int argc, char** argv)
 				}
 			}
 		}
+	#pragma endregion Expression Debug
 
 		// create the table of variables
 		VarMap variables;
@@ -238,10 +222,12 @@ int main(const int argc, char** argv)
 					const auto varName{ setVariable.value().text };
 					variables.erase(varName);
 
+				#pragma region Expression Debug
 					if (debugExpressions) {
 						// print that the variable was set to undefined
 						std::cout << "Expression " << i << " set \"" << varName << "\" to undefined\n";
 					}
+				#pragma endregion Expression Debug
 
 					continue;
 				}
@@ -252,6 +238,7 @@ int main(const int argc, char** argv)
 				// convert to RPN
 				const auto rpnExpr{ expr::to_rpn(expr) };
 
+			#pragma region Expression Debug
 				if (debugExpressions) {
 					// print the expression in RPN
 					std::cout << "Expression " << i << " in RPN:\n";
@@ -262,6 +249,7 @@ int main(const int argc, char** argv)
 						std::cout << "  " << '[' << indexStr << ']' << indent(3, indexStr.size()) << typeName << indent(20, typeName.size() + 2) << tkn << '\n';
 					}
 				}
+			#pragma endregion Expression Debug
 
 				// evaluate the result
 				result = expr::evaluate_rpn(rpnExpr, fnmap, variables);
@@ -274,6 +262,7 @@ int main(const int argc, char** argv)
 					<< indent(10)
 					<< ex.what()
 					<< '\n';
+
 				continue;
 			}
 
@@ -282,15 +271,34 @@ int main(const int argc, char** argv)
 				const auto varName{ setVariable.value().text };
 				variables[varName] = result;
 
+			#pragma region Expression Debug
 				if (debugExpressions) {
 					std::cout << "Expression " << i << " set variable \"" << varName << "\" to " << result << '\n';
 				}
+			#pragma endregion Expression Debug
 			}
 			else {
+				std::string result_str{};
+				// determine which number base to print the result in
+				using expr::PrimitiveTokenType;
+				switch (get_common_number_type(expr)) {
+				default:
+					result_str = str::to_string(result.cast_to<long double>(), 16, false);
+					break;
+				case PrimitiveTokenType::BinaryNumber:
+					result_str = "0b" + str::fromnumber(result.cast_to<long long>(), 2);
+					break;
+				case PrimitiveTokenType::OctalNumber:
+					result_str = str::fromnumber(result.cast_to<long long>(), 8);
+					if (!result_str.starts_with('0'))
+						result_str.insert(result_str.begin(), '0');
+					break;
+				case PrimitiveTokenType::HexNumber:
+					result_str = "0x" + str::fromnumber(result.cast_to<long long>(), 16);
+					break;
+				}
 				// print to the console
-				std::cout
-					<< str::to_string(result.cast_to<long double>(), 16, false)
-					<< std::endl;
+				std::cout << result_str << std::endl;
 			}
 		}
 
@@ -299,4 +307,23 @@ int main(const int argc, char** argv)
 		std::cerr << csync.get_fatal() << ex.what() << std::endl;
 		return 1;
 	}
+}
+
+inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const& expr)
+{
+	using namespace calc::expr;
+	if (expr.empty()) return PrimitiveTokenType::Unknown;
+
+	std::vector<tkn::primitive> numbers;
+	numbers.reserve(expr.size());
+	for (const auto& tkn : expr) {
+		if (is_number(tkn.type))
+			numbers.emplace_back(tkn);
+	}
+
+	if (numbers.empty()) return PrimitiveTokenType::Unknown;
+
+	return std::all_of(numbers.begin() + 1, numbers.end(), [&numbers](auto&& v) { return v.type == numbers[0].type; })
+		? numbers[0].type
+		: PrimitiveTokenType::Unknown;
 }

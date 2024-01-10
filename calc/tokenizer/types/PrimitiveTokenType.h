@@ -56,4 +56,18 @@ X(AbsClose)						\
 		PRIMITIVE_TOKEN_TYPE
 	};
 #undef X
+
+	constexpr bool is_number(PrimitiveTokenType const tokenType) noexcept
+	{
+		switch (tokenType) {
+		case PrimitiveTokenType::BinaryNumber:
+		case PrimitiveTokenType::OctalNumber:
+		case PrimitiveTokenType::HexNumber:
+		case PrimitiveTokenType::IntNumber:
+		case PrimitiveTokenType::RealNumber:
+			return true;
+		default:
+			return false;
+		}
+	}
 }
