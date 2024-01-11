@@ -2,6 +2,7 @@
 // 307lib
 #include <var.hpp>
 #include <strcore.hpp>
+#include <strconv.hpp>
 
 // STL
 #include <cstdint>
@@ -144,9 +145,9 @@ namespace calc {
 		friend Number operator|(const Number& l, const Number& r)
 		{
 			if (!l.has_integral_value())
-				throw make_exception("Operator | (BitwiseOR) requires integral types, but the left-side operand was ", std::get<real_t>(l.value), "!");
+				throw make_exception("Operator | (BitwiseOR) requires integral types, but the left-side operand was ", str::to_string(std::get<real_t>(l.value), 16), "!");
 			else if (!r.has_integral_value())
-				throw make_exception("Operator | (BitwiseOR) requires integral types, but the right-side operand was ", std::get<real_t>(r.value), "!");
+				throw make_exception("Operator | (BitwiseOR) requires integral types, but the right-side operand was ", str::to_string(std::get<real_t>(r.value), 16), "!");
 
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number { {
 					using Tl = std::decay_t<decltype(lVal)>;
@@ -161,9 +162,9 @@ namespace calc {
 		friend Number operator&(const Number& l, const Number& r)
 		{
 			if (!l.has_integral_value())
-				throw make_exception("Operator & (BitwiseAND) requires integral types, but the left-side operand was ", std::get<real_t>(l.value), "!");
+				throw make_exception("Operator & (BitwiseAND) requires integral types, but the left-side operand was ", str::to_string(std::get<real_t>(l.value), 16), "!");
 			else if (!r.has_integral_value())
-				throw make_exception("Operator & (BitwiseAND) requires integral types, but the right-side operand was ", std::get<real_t>(r.value), "!");
+				throw make_exception("Operator & (BitwiseAND) requires integral types, but the right-side operand was ", str::to_string(std::get<real_t>(r.value), 16), "!");
 
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number { {
 					using Tl = std::decay_t<decltype(lVal)>;
@@ -178,9 +179,9 @@ namespace calc {
 		friend Number operator^(const Number& l, const Number& r)
 		{
 			if (!l.has_integral_value())
-				throw make_exception("Operator ^ (BitwiseXOR) requires integral types, but the left-side operand was ", std::get<real_t>(l.value), "!");
+				throw make_exception("Operator ^ (BitwiseXOR) requires integral types, but the left-side operand was ", str::to_string(std::get<real_t>(l.value), 16), "!");
 			else if (!r.has_integral_value())
-				throw make_exception("Operator ^ (BitwiseXOR) requires integral types, but the right-side operand was ", std::get<real_t>(r.value), "!");
+				throw make_exception("Operator ^ (BitwiseXOR) requires integral types, but the right-side operand was ", str::to_string(std::get<real_t>(r.value), 16), "!");
 
 			return std::visit([](auto&& lVal, auto&& rVal) -> Number { {
 					using Tl = std::decay_t<decltype(lVal)>;
