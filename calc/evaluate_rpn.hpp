@@ -161,9 +161,8 @@ namespace calc::expr {
 						break;
 					}
 					case PrimitiveTokenType::Exponent: {
-						// doesn't work (?):
 						const auto right{ pop_off(operands) };
-						result = (*fnMap.get("pow"))(pop_off(operands), right);
+						result = (*fnMap.get("pow"))(pop_off(operands), right).value();
 						break;
 					}
 					case PrimitiveTokenType::BitNOT: {

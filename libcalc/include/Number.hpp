@@ -1,7 +1,9 @@
 #pragma once
+// 307lib
 #include <var.hpp>
 #include <strcore.hpp>
 
+// STL
 #include <cstdint>
 #include <variant>
 #include <utility>
@@ -205,16 +207,6 @@ namespace calc {
 		constexpr T cast_to() const noexcept
 		{
 			return std::visit([](auto const& value) { return static_cast<T>(value); }, value);
-		}
-
-		template<var::any_same_or_convertible_to<int_t, real_t> T>
-		Number& operator=(T&& v)
-		{
-			if constexpr (var::same_or_convertible<T, int_t>)
-				value = static_cast<int_t>(std::move(v));
-			else if constexpr (var::same_or_convertible<T, real_t>)
-				value = static_cast<real_t>(std::move(v));
-			return *this;
 		}
 
 		friend std::ostream& operator<<(std::ostream& os, const Number& n)

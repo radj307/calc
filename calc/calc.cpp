@@ -87,6 +87,7 @@ struct print_help {
 			<< '\n'
 			<< "  -d, --debug              Shows the arguments, tokens, and expressions received by the application." << '\n'
 			<< "      --functions          Displays a list of all of the functions supported by the current instance." << '\n'
+			<< "  -^, --pow                Interprets the caret '^' symbol as an exponent instead of Bitwise XOR." << '\n'
 			//<< '\n'
 			//<< "  " << '\n'
 			;
@@ -118,6 +119,8 @@ int main(const int argc, char** argv)
 			std::cout << calc_VERSION_EXTENDED << std::endl;
 			return 0;
 		}
+
+		settings.caretIsExponent = args.check_any<opt3::Flag, opt3::Option>('^', "pow");
 
 		// load/build the function map
 		FunctionMap fnmap;
