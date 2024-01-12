@@ -76,6 +76,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
 
+      - run: mv binary-*/* .
+
       - name: Get tag name
         id: get_tag
         run: |
