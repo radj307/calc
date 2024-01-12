@@ -15,99 +15,130 @@
 #include <functional>		//< for std::function
 
 namespace calc {
-	struct FunctionMap {
-		// See https://cplusplus.com/reference/cmath/
-		std::map<std::string, std::tuple<basic_operator*, std::string>> map{
+	class FunctionMap {
+		std::map<std::string, std::tuple<base_func*, std::string>> map{
 			/// Trigonometric Functions
-			std::make_pair("cos", std::make_tuple((basic_operator*)new singletype_operator{ cosl }, "Cosine")),
-			std::make_pair("sin", std::make_tuple((basic_operator*)new singletype_operator{ sinl }, "Sine")),
-			std::make_pair("tan", std::make_tuple((basic_operator*)new singletype_operator{ tanl }, "Tangent")),
-			std::make_pair("acos", std::make_tuple((basic_operator*)new singletype_operator{ acosl }, "Inverse Cosine")),
-			std::make_pair("asin", std::make_tuple((basic_operator*)new singletype_operator{ asinl }, "Inverse Sine")),
-			std::make_pair("atan", std::make_tuple((basic_operator*)new singletype_operator{ atanl }, "Inverse Tangent")),
-			std::make_pair("atan2", std::make_tuple((basic_operator*)new singletype_operator{ atan2l }, "Binary Tangent")),
+			std::make_pair("cos", std::make_tuple(new func(cosl), "Cosine")),
+			std::make_pair("sin", std::make_tuple(new func(sinl), "Sine")),
+			std::make_pair("tan", std::make_tuple(new func(tanl), "Tangent")),
+			std::make_pair("acos", std::make_tuple(new func(acosl), "Inverse Cosine")),
+			std::make_pair("asin", std::make_tuple(new func(asinl), "Inverse Sine")),
+			std::make_pair("atan", std::make_tuple(new func(atanl), "Inverse Tangent")),
+			std::make_pair("atan2", std::make_tuple(new func(atan2l), "Binary Tangent")),
 			/// Hyperbolic Functions
-			std::make_pair("cosh", std::make_tuple((basic_operator*)new singletype_operator{ coshl }, "Hyperbolic Cosine")),
-			std::make_pair("sinh", std::make_tuple((basic_operator*)new singletype_operator{ sinhl }, "Hyperbolic Sine")),
-			std::make_pair("tanh", std::make_tuple((basic_operator*)new singletype_operator{ tanhl }, "Hyperbolic Tangent")),
-			std::make_pair("acosh", std::make_tuple((basic_operator*)new singletype_operator{ acoshl }, "Inverse Hyperbolic Cosine")),
-			std::make_pair("asinh", std::make_tuple((basic_operator*)new singletype_operator{ asinhl }, "Inverse Hyperbolic Sine")),
-			std::make_pair("atanh", std::make_tuple((basic_operator*)new singletype_operator{ atanhl }, "Inverse Hyperbolic Tangent")),
+			std::make_pair("cosh", std::make_tuple(new func(coshl), "Hyperbolic Cosine")),
+			std::make_pair("sinh", std::make_tuple(new func(sinhl), "Hyperbolic Sine")),
+			std::make_pair("tanh", std::make_tuple(new func(tanhl), "Hyperbolic Tangent")),
+			std::make_pair("acosh", std::make_tuple(new func(acoshl), "Inverse Hyperbolic Cosine")),
+			std::make_pair("asinh", std::make_tuple(new func(asinhl), "Inverse Hyperbolic Sine")),
+			std::make_pair("atanh", std::make_tuple(new func(atanhl), "Inverse Hyperbolic Tangent")),
 			/// Exponential and Logarithmic Functions
-			std::make_pair("exp", std::make_tuple((basic_operator*)new singletype_operator{ expl }, "")),
-			//std::make_pair("frexp", std::make_tuple((basic_operator*)new singletype_operator{ frexpl }, "")), //< uses pointers, must be adapted
-			std::make_pair("ldexp", std::make_tuple((basic_operator*)new singletype_operator{ ldexpl }, "")),
-			std::make_pair("log", std::make_tuple((basic_operator*)new singletype_operator{ logl }, "")),
-			std::make_pair("log10", std::make_tuple((basic_operator*)new singletype_operator{ log10l }, "")),
-			//std::make_pair("modf", std::make_tuple((basic_operator*)new singletype_operator{ modfl }, "")), //< uses pointers, must be adapted
-			std::make_pair("exp2", std::make_tuple((basic_operator*)new singletype_operator{ exp2l }, "")),
-			std::make_pair("expm1", std::make_tuple((basic_operator*)new singletype_operator{ expm1l }, "")),
-			std::make_pair("ilogb", std::make_tuple((basic_operator*)new singletype_operator{ ilogbl }, "")),
-			std::make_pair("log1p", std::make_tuple((basic_operator*)new singletype_operator{ log1pl }, "")),
-			std::make_pair("log2", std::make_tuple((basic_operator*)new singletype_operator{ log2l }, "")),
-			std::make_pair("logb", std::make_tuple((basic_operator*)new singletype_operator{ logbl }, "")),
-			std::make_pair("scalbn", std::make_tuple((basic_operator*)new singletype_operator{ scalbnl }, "")),
-			std::make_pair("scalbln", std::make_tuple((basic_operator*)new singletype_operator{ scalblnl }, "")),
+			std::make_pair("exp", std::make_tuple(new func(expl), "")),
+			//std::make_pair("frexp", std::make_tuple(new func( frexpl ), "")), //< uses pointers, must be adapted
+			std::make_pair("ldexp", std::make_tuple(new func(ldexpl), "")),
+			std::make_pair("log", std::make_tuple(new func(logl), "")),
+			std::make_pair("log10", std::make_tuple(new func(log10l), "")),
+			//std::make_pair("modf", std::make_tuple(new func( modfl ), "")), //< uses pointers, must be adapted
+			std::make_pair("exp2", std::make_tuple(new func(exp2l), "")),
+			std::make_pair("expm1", std::make_tuple(new func(expm1l), "")),
+			std::make_pair("ilogb", std::make_tuple(new func(ilogbl), "")),
+			std::make_pair("log1p", std::make_tuple(new func(log1pl), "")),
+			std::make_pair("log2", std::make_tuple(new func(log2l), "")),
+			std::make_pair("logb", std::make_tuple(new func(logbl), "")),
+			std::make_pair("scalbn", std::make_tuple(new func(scalbnl), "")),
+			std::make_pair("scalbln", std::make_tuple(new func(scalblnl), "")),
 			/// Power Functions
-			std::make_pair("pow", std::make_tuple((basic_operator*)new singletype_operator{ powl }, "Calculates the result of an exponent.")),
-			//std::make_pair("pow", std::make_tuple((basic_operator*)new dualtype_operator{ ipow, powl }, "Calculates the result of an exponent.")),
-			std::make_pair("sqrt", std::make_tuple((basic_operator*)new singletype_operator{ sqrtl }, "Calculates a square root.")),
-			std::make_pair("cbrt", std::make_tuple((basic_operator*)new singletype_operator{ cbrtl }, "Calculates a cubic root.")),
-			std::make_pair("hypot", std::make_tuple((basic_operator*)new singletype_operator{ hypotl }, "Calculate hypotenuse.")),
+			std::make_pair("pow", std::make_tuple(new func(std::function{ [](Number const& base, Number const& exp) -> Number {
+				if (base.has_integral_value() && exp.has_integral_value()) {
+					return ipow(base.cast_to<int64_t>(), exp.cast_to<int64_t>());
+				}
+				else return powl(base.cast_to<long double>(), exp.cast_to<long double>());
+			} }), "Calculates the result of an exponent.")),
+			std::make_pair("sqrt", std::make_tuple(new func(sqrtl), "Calculates a square root.")),
+			std::make_pair("cbrt", std::make_tuple(new func(cbrtl), "Calculates a cubic root.")),
+			std::make_pair("hypot", std::make_tuple(new func(hypotl), "Calculate hypotenuse.")),
 			/// Error & Gamma Functions
-			std::make_pair("erf", std::make_tuple((basic_operator*)new singletype_operator{ erfl }, "")),
-			std::make_pair("erfc", std::make_tuple((basic_operator*)new singletype_operator{ erfcl }, "")),
-			std::make_pair("tgamma", std::make_tuple((basic_operator*)new singletype_operator{ tgammal }, "")),
-			std::make_pair("lgamma", std::make_tuple((basic_operator*)new singletype_operator{ lgammal }, "")),
+			std::make_pair("erf", std::make_tuple(new func(erfl), "")),
+			std::make_pair("erfc", std::make_tuple(new func(erfcl), "")),
+			std::make_pair("tgamma", std::make_tuple(new func(tgammal), "")),
+			std::make_pair("lgamma", std::make_tuple(new func(lgammal), "")),
 			/// Rounding & Remainder Functions
-			std::make_pair("ceil", std::make_tuple((basic_operator*)new singletype_operator{ ceill }, "Raises a number to the nearest integral.")),
-			std::make_pair("floor", std::make_tuple((basic_operator*)new singletype_operator{ floorl }, "Lowers a number to the nearest integral.")),
-			std::make_pair("fmod", std::make_tuple((basic_operator*)new singletype_operator{ fmodl }, "")), //< implemented as '%' operator
-			std::make_pair("trunc", std::make_tuple((basic_operator*)new singletype_operator{ truncl }, "Truncate a floating-point number.")),
-			std::make_pair("round", std::make_tuple((basic_operator*)new singletype_operator{ roundl }, "Round a number to the nearest integral.")),
-			std::make_pair("remainder", std::make_tuple((basic_operator*)new singletype_operator{ remainderl }, "Get remainder of division operation.")),
+			std::make_pair("ceil", std::make_tuple(new func(ceill), "Raises a number to the nearest integral.")),
+			std::make_pair("floor", std::make_tuple(new func(floorl), "Lowers a number to the nearest integral.")),
+			std::make_pair("fmod", std::make_tuple(new func(fmodl), "")), //< implemented as '%' operator
+			std::make_pair("trunc", std::make_tuple(new func(truncl), "Truncate a floating-point number.")),
+			std::make_pair("round", std::make_tuple(new func(roundl), "Round a number to the nearest integral.")),
+			std::make_pair("remainder", std::make_tuple(new func(remainderl), "Get remainder of division operation.")),
 			/// Floating-point Manipulation Functions
-			std::make_pair("copysign", std::make_tuple((basic_operator*)new singletype_operator{ copysignl }, "")),
-			//std::make_pair("nan", std::make_tuple((basic_operator*)new singletype_operator{ nanl }, "")), //< requires a char*
-			std::make_pair("nextafter", std::make_tuple((basic_operator*)new singletype_operator{ nextafterl }, "")),
-			std::make_pair("nexttoward", std::make_tuple((basic_operator*)new singletype_operator{ nexttowardl }, "")),
+			std::make_pair("copysign", std::make_tuple(new func(copysignl), "")),
+			std::make_pair("nextafter", std::make_tuple(new func(nextafterl), "")),
+			std::make_pair("nexttoward", std::make_tuple(new func(nexttowardl), "")),
 			/// Minimum, Maximum, & Difference Functions
-			//std::make_pair("dim", std::make_tuple((basic_operator*)new singletype_operator{ fdiml }, "")), //< weird
-			std::make_pair("max", std::make_tuple((basic_operator*)new dualtype_operator{ imax, fmaxl }, "Get Larger Value")),
-			std::make_pair("min", std::make_tuple((basic_operator*)new dualtype_operator{ imin, fminl }, "Get Smaller Value")),
+			//std::make_pair("dim", std::make_tuple(new func( fdiml ), "")), //< weird
+			std::make_pair("max", std::make_tuple(new func(std::function{ [](Number const& a, Number const& b) -> Number {
+				if (a.has_integral_value() && b.has_integral_value()) {
+					return imax(a.cast_to<int64_t>(), b.cast_to<int64_t>());
+				}
+				else return fmaxl(a.cast_to<long double>(), b.cast_to<long double>());
+			} }), "Get Larger Value")),
+			std::make_pair("min", std::make_tuple(new func(std::function{ [](Number const& a, Number const& b) -> Number {
+				if (a.has_integral_value() && b.has_integral_value()) {
+					return imin(a.cast_to<int64_t>(), b.cast_to<int64_t>());
+				}
+				else return fminl(a.cast_to<long double>(), b.cast_to<long double>());
+			} }), "Get Smaller Value")),
 			/// Other
-			std::make_pair("abs", std::make_tuple((basic_operator*)new dualtype_operator{ llabs, fabsl }, "Get Absolute Value")),
-			std::make_pair("fma", std::make_tuple((basic_operator*)new singletype_operator{ fmal }, "x * y + z.")),
+			std::make_pair("abs", std::make_tuple(new func(std::function{ [](Number const& n) -> Number {
+				if (n.has_integral_value()) {
+					return llabs(n.cast_to<long long>());
+				}
+				else return fabsl(n.cast_to<long double>());
+			} }), "Get Absolute Value")),
+			std::make_pair("fma", std::make_tuple(new func(fmal), "x * y + z.")),
+
 		};
 
+	public:
 		~FunctionMap()
 		{
-			// delete the pointers in the map
 			for (auto& pr : map) {
-				auto& [func, _] { pr.second };
-				if (func != nullptr) {
-					delete func;
-					func = nullptr;
+				if (auto* ptr = std::get<0>(pr.second)) {
+					delete ptr;
 				}
 			}
 		}
 
-		/**
-		 * @brief					Gets a pointer to the function operator with the specified name.
-		 * @param functionName	  -	The name of the function to retrieve.
-		 * @returns					A const operator pointer when successful; otherwise, nullptr.
-		 */
-		basic_operator const* const get(std::string const& functionName) const noexcept
+		/// @brief	Gets the base_func pointer for the specified functionName.
+		base_func const* const get(std::string const& functionName) const noexcept(false)
 		{
-			if (const auto& it{ map.find(functionName) }; it != map.end())
+			if (const auto& it{ map.find(functionName) }; it != map.end()) {
 				return std::get<0>(it->second);
+			}
 			return nullptr;
 		}
 
-		/// @brief	Determines whether the specified name is a function or not.
-		inline bool isFunction(std::string const& name) const noexcept
+		/// @brief	Invokes the specified functionName with the specified args and returns the result.
+		Number invoke(std::string const& functionName, std::vector<Number> const& args) const
+		{
+			return get(functionName)->invoke(args);
+		}
+		/// @brief	Invokes the specified functionName with the specified args and returns the result.
+		template<typename... Args>
+		Number invoke(std::string const& functionName, Args&&... args) const
+		{
+			return get(functionName)->invoke(std::vector<Number>{ static_cast<Number>(std::forward<Args>(args))... });
+		}
+
+		/// @brief	Determines whether the specified name refers to a function.
+		inline bool isFunction(std::string const& name) const
 		{
 			return map.contains(name);
+		}
+
+		/// @brief	Gets the number of parameters required by the specified functionName.
+		inline size_t getParamsCount(std::string const& functionName) const
+		{
+			return get(functionName)->getParamsCount();
 		}
 
 		friend std::ostream& operator<<(std::ostream& os, const FunctionMap& fnMap)
@@ -127,14 +158,25 @@ namespace calc {
 			if (++maxDescLen < 11)
 				maxDescLen = 11;
 
-			os
-				<< "| Function " << indent(maxNameLen, 9) << "| Params " << "| Description" << indent(maxDescLen, 11) << '|' << '\n'
-				<< '|' << indent(maxNameLen + 1, 0, '-') << '|' << indent(8, 0, '-') << '|' << indent(maxDescLen + 1, 0, '-') << '|' << '\n';
+			os	// line 0:
+				<< "| Function " << indent(maxNameLen, 9)
+				<< "| Params "
+				<< "| Description" << indent(maxDescLen, 11)
+				<< '|' << '\n'
+				// line 1:
+				<< '|' << indent(maxNameLen + 1, 0, '-')
+				<< '|' << indent(8, 0, '-')
+				<< '|' << indent(maxDescLen + 1, 0, '-')
+				<< '|' << '\n';
 
 			for (const auto& [name, val] : fnMap.map) {
 				const auto& [func, desc] { val };
 				const auto paramsCountString{ str::stringify(func->getParamsCount()) };
-				os << "| " << name << indent(maxNameLen, name.size()) << "| " << paramsCountString << indent(7, paramsCountString.size()) << "| " << desc << indent(maxDescLen, desc.size()) << '|' << '\n';
+				os	// line n:
+					<< "| " << name << indent(maxNameLen, name.size())
+					<< "| " << paramsCountString << indent(7, paramsCountString.size())
+					<< "| " << desc << indent(maxDescLen, desc.size())
+					<< '|' << '\n';
 			}
 			return os;
 		}

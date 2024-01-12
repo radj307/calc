@@ -80,216 +80,208 @@ namespace calc::expr {
 			 it != it_end;
 			 ++it) {
 			const auto tkn{ *it };
-			if (tkn.type == PrimitiveTokenType::FunctionName && fnMap.isFunction(tkn.text)) {
-				// Function Type
-				const auto* const func{ fnMap.get(tkn.text) };
-				if (func == nullptr) // this *shouldn't* be possible, since fnMap.isFunction checks if it exists
-					throw make_exception("evaluate_rpn() failed to retrieve a valid function pointer for \"", tkn.text, "\"; this is a bug, please report it!");
-				const auto paramsCount{ func->getParamsCount() };
-
-				// pop the required number of parameters from the stack
-				std::vector<Number> params;
-				params.reserve(paramsCount);
-				for (auto i{ 0 }; !operands.empty() && i < paramsCount; ++i) {
-					params.emplace_back(operands.top());
-					operands.pop();
-				}
-				if (params.size() < paramsCount) {
-					throw make_exception("Function \"", tkn.text, "\" takes ", paramsCount, " operands, but only ", params.size(), (params.size() == 1 ? " was" : " were"), " provided!", str::stringify_if([&params]() { return !params.empty(); }, " (\"", str::stringify_join(params.begin(), params.end(), "\", \""), "\")"));
-				}
-				// reverse the operands so they're in the correct order for the function call
-				std::reverse(params.begin(), params.end());
-
-				// get the result of the function
-				Number result;
-				try {
-					result = func->invoke(params);
-				} catch (const std::exception& ex) {
-					throw make_exception("An exception was thrown by function \"",
-										 tkn.text,
-										 "\" with params \"",
-										 str::stringify_join(params.begin(), params.end(), "\", \""),
-										 "\":\n",
-										 indent(10),
-										 ex.what());
-				} catch (...) {
-					throw make_exception("An undefined exception was thrown by function \"",
-										 tkn.text,
-										 "\" with params \"",
-										 str::stringify_join(params.begin(), params.end(), "\", \""),
-										 "\"");
-				}
-
-				// push the function result to the operand stack
-				operands.push(result);
-				atLeastOneOperation = true;
+			// evaluate result
+			Number result{};
+			if (is_number(tkn.type)) {
+				result = primitiveToNumber(tkn);
+			}
+			else if (tkn.type == PrimitiveTokenType::Variable) {
+				if (vars.isDefined(tkn.text))
+					result = vars[tkn.text];
+				else throw make_exception("Variable \"", tkn.text, "\" is undefined!");
 			}
 			else {
-				// evaluate result
-				Number result{};
-				if (is_number(tkn.type)) {
-					result = primitiveToNumber(tkn);
+				/*/
+				 * NOTE
+				 * ====
+				 * Pop the right-most operand first!
+				/*/
+				switch (tkn.type) {
+				case PrimitiveTokenType::FunctionName: {
+					// Call the function
+					auto const* const func{ fnMap.get(tkn.text) };
+					const auto paramsCount{ func->getParamsCount() };
+
+					// pop the required number of parameters from the stack
+					std::vector<Number> params;
+					params.reserve(paramsCount);
+					for (auto i{ 0 }; !operands.empty() && i < paramsCount; ++i) {
+						params.emplace_back(pop_off(operands));
+					}
+					if (params.size() < paramsCount) {
+						throw make_exception("Function \"", tkn.text, "\" takes ", paramsCount, " operands, but only ", params.size(), (params.size() == 1 ? " was" : " were"), " provided!", str::stringify_if([&params]() { return !params.empty(); }, " (\"", str::stringify_join(params.begin(), params.end(), "\", \""), "\")"));
+					}
+
+					// reverse the operands so they're in the correct order for the function call
+					std::reverse(params.begin(), params.end());
+
+					// get the result of the function
+					try {
+						result = func->invoke(params);
+					} catch (const std::exception& ex) {
+						throw make_exception("An exception was thrown by function \"",
+											 tkn.text,
+											 "\" with params \"",
+											 str::stringify_join(params.begin(), params.end(), "\", \""),
+											 "\":\n",
+											 indent(10),
+											 ex.what());
+					} catch (...) {
+						throw make_exception("An undefined exception was thrown by function \"",
+											 tkn.text,
+											 "\" with params \"",
+											 str::stringify_join(params.begin(), params.end(), "\", \""),
+											 "\"");
+					}
+					break;
 				}
-				else {
-					/*/
-					 * NOTE
-					 * ====
-					 * Pop the right-most operand first!
-					/*/
-					switch (tkn.type) {
-					case PrimitiveTokenType::Variable:
-						if (vars.isDefined(tkn.text))
-							result = vars[tkn.text];
-						else throw make_exception("Variable \"", tkn.text, "\" is undefined!");
-						break;
-					case PrimitiveTokenType::Factorial: {
-						if (operands.size() < 1) throw make_exception("Not enough operands for unary operator ! (Factorial)");
-						const auto operand{ pop_off(operands) };
+				case PrimitiveTokenType::Factorial: {
+					if (operands.size() < 1) throw make_exception("Not enough operands for unary operator ! (Factorial)");
+					const auto operand{ pop_off(operands) };
 
-						if (!operand.has_integral_value() || (!operand.is_positive() && !operand.is_zero()))
-							throw make_exception("Operator ! (Factorial) requires a positive integer!");
+					if (!operand.has_integral_value() || (!operand.is_positive() && !operand.is_zero()))
+						throw make_exception("Operator ! (Factorial) requires a positive integer!");
 
-						result = factorial(operand.cast_to<typename Number::int_t>());
-						break;
-					}
-					case PrimitiveTokenType::Exponent: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator ^ (Exponent)");
-						const auto right{ pop_off(operands) };
-						result = (*fnMap.get("pow"))(pop_off(operands), right).value();
-						break;
-					}
-					case PrimitiveTokenType::Negate: {
-						if (operands.size() < 1) throw make_exception("Not enough operands for unary operator - (Negate)");
-						result = -pop_off(operands);
-						break;
-					}
-					case PrimitiveTokenType::Add: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator + (Add)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) + right;
-						break;
-					}
-					case PrimitiveTokenType::Subtract: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator - (Subtract)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) - right;
-						break;
-					}
-					case PrimitiveTokenType::Multiply: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator * (Multiply)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) * right;
-						break;
-					}
-					case PrimitiveTokenType::Divide: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator / (Divide)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) / right;
-						break;
-					}
-					case PrimitiveTokenType::Modulo: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator % (Modulo)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) % right;
-						break;
-					}
-					case PrimitiveTokenType::BitNOT: {
-						if (operands.size() < 1) throw make_exception("Not enough operands for unary operator ~ (BitwiseNOT)");
-						result = ~pop_off(operands);
-						break;
-					}
-					case PrimitiveTokenType::BitOR: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator | (BitwiseOR)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) | right;
-						break;
-					}
-					case PrimitiveTokenType::BitAND: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator & (BitwiseAND)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) & right;
-						break;
-					}
-					case PrimitiveTokenType::BitXOR: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator ^ (BitwiseXOR)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) ^ right;
-						break;
-					}
-					case PrimitiveTokenType::BitshiftLeft: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator << (BitshiftLeft)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) << right;
-						break;
-					}
-					case PrimitiveTokenType::BitshiftRight: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator >> (BitshiftRight)");
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) >> right;
-						break;
-					}
-					case PrimitiveTokenType::Equal: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator == (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::Equal], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) == right;
-						break;
-					}
-					case PrimitiveTokenType::NotEqual: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator != (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::NotEqual], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) != right;
-						break;
-					}
-					case PrimitiveTokenType::LessThan: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator < (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LessThan], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) < right;
-						break;
-					}
-					case PrimitiveTokenType::LessOrEqual: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator <= (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LessOrEqual], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) <= right;
-						break;
-					}
-					case PrimitiveTokenType::GreaterThan: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator > (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::GreaterThan], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) > right;
-						break;
-					}
-					case PrimitiveTokenType::GreaterOrEqual: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator >= (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::GreaterOrEqual], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) >= right;
-						break;
-					}
-					case PrimitiveTokenType::LogicalNOT: {
-						if (operands.size() < 1) throw make_exception("Not enough operands for unary operator ! (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LogicalNOT], ')');
-						result = !pop_off(operands);
-						break;
-					}
-					case PrimitiveTokenType::LogicalOR: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator || (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LogicalOR], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) || right;
-						break;
-					}
-					case PrimitiveTokenType::LogicalAND: {
-						if (operands.size() < 2) throw make_exception("Not enough operands for binary operator && (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LogicalAND], ')');
-						const auto right{ pop_off(operands) };
-						result = pop_off(operands) && right;
-						break;
-					}
-					default:
-						throw make_exception("Operator \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not implemented yet.");
-					}
-
-					atLeastOneOperation = true;
+					result = factorial(operand.cast_to<typename Number::int_t>());
+					break;
+				}
+				case PrimitiveTokenType::Exponent: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator ^ (Exponent)");
+					const auto right{ pop_off(operands) };
+					result = fnMap.invoke("pow", pop_off(operands), right);
+					break;
+				}
+				case PrimitiveTokenType::Negate: {
+					if (operands.size() < 1) throw make_exception("Not enough operands for unary operator - (Negate)");
+					result = -pop_off(operands);
+					break;
+				}
+				case PrimitiveTokenType::Add: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator + (Add)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) + right;
+					break;
+				}
+				case PrimitiveTokenType::Subtract: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator - (Subtract)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) - right;
+					break;
+				}
+				case PrimitiveTokenType::Multiply: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator * (Multiply)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) * right;
+					break;
+				}
+				case PrimitiveTokenType::Divide: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator / (Divide)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) / right;
+					break;
+				}
+				case PrimitiveTokenType::Modulo: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator % (Modulo)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) % right;
+					break;
+				}
+				case PrimitiveTokenType::BitNOT: {
+					if (operands.size() < 1) throw make_exception("Not enough operands for unary operator ~ (BitwiseNOT)");
+					result = ~pop_off(operands);
+					break;
+				}
+				case PrimitiveTokenType::BitOR: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator | (BitwiseOR)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) | right;
+					break;
+				}
+				case PrimitiveTokenType::BitAND: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator & (BitwiseAND)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) & right;
+					break;
+				}
+				case PrimitiveTokenType::BitXOR: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator ^ (BitwiseXOR)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) ^ right;
+					break;
+				}
+				case PrimitiveTokenType::BitshiftLeft: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator << (BitshiftLeft)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) << right;
+					break;
+				}
+				case PrimitiveTokenType::BitshiftRight: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator >> (BitshiftRight)");
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) >> right;
+					break;
+				}
+				case PrimitiveTokenType::Equal: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator == (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::Equal], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) == right;
+					break;
+				}
+				case PrimitiveTokenType::NotEqual: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator != (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::NotEqual], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) != right;
+					break;
+				}
+				case PrimitiveTokenType::LessThan: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator < (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LessThan], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) < right;
+					break;
+				}
+				case PrimitiveTokenType::LessOrEqual: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator <= (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LessOrEqual], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) <= right;
+					break;
+				}
+				case PrimitiveTokenType::GreaterThan: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator > (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::GreaterThan], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) > right;
+					break;
+				}
+				case PrimitiveTokenType::GreaterOrEqual: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator >= (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::GreaterOrEqual], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) >= right;
+					break;
+				}
+				case PrimitiveTokenType::LogicalNOT: {
+					if (operands.size() < 1) throw make_exception("Not enough operands for unary operator ! (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LogicalNOT], ')');
+					result = !pop_off(operands);
+					break;
+				}
+				case PrimitiveTokenType::LogicalOR: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator || (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LogicalOR], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) || right;
+					break;
+				}
+				case PrimitiveTokenType::LogicalAND: {
+					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator && (", PrimitiveTokenTypeNames[(int)PrimitiveTokenType::LogicalAND], ')');
+					const auto right{ pop_off(operands) };
+					result = pop_off(operands) && right;
+					break;
+				}
+				default:
+					throw make_exception("Operator \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not implemented yet.");
 				}
 
-				operands.push(result);
+				atLeastOneOperation = true;
 			}
+
+			operands.push(result);
 		}
 
 		if (operands.size() > 1) {
