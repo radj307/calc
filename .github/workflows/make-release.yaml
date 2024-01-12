@@ -1,0 +1,91 @@
+name: Make Release
+
+on:
+  push:
+    tags: [ '[0-9]+.[0-9]+.[0-9]+-?**' ]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'The tag to create the release for.'
+        required: true
+        default: ''
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+      fail-fast: true
+
+    steps:
+      - uses: checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          ref: '${{ github.event.inputs.tag_name || github.event.inputs.ref }}'
+
+      - name: Setup Dependencies
+        run:  |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get install -y gcc-10 cmake ninja-build
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install gcc@10 cmake ninja
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            choco install ninja
+          fi
+        shell: bash
+
+      - if:   ${{ runner.os == 'Windows' }}
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run:  cmake -B out/build -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+      - name: Build
+        run:  cmake --build out/build --config Release
+
+      - name: Compress
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          cd out/build/calc
+          Compress-Archive calc.exe "calc-$(./calc -v)-Windows.zip"
+        shell: pwsh
+
+      - name: Compress
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          cd out/build/calc
+          zip -T9 "calc-$(./calc -v)-${{ runner.os }}.zip" calc
+        shell: bash
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ runner.os }}
+          path: ${{ github.workspace }}/out/build/calc/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Get tag name
+        id: get_tag
+        run: |
+          if [ "${{github.event.inputs.tag}}" == "" ]; then TAG="${GITHUB_REF/refs\/tags\//}"; else TAG="${{github.event.inputs.tag}}" ; fi
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+          echo ::set-output name=NAME::"Release $TAG"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          prerelease: true
+          tag_name: ${{ steps.get_tag.outputs.tag_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: "*.zip"
