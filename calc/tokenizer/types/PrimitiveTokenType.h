@@ -14,6 +14,7 @@ X(FunctionName)					\
 X(ArrayOpen)					\
 X(ArrayClose)					\
 X(Separator)					\
+X(Boolean)						\
 X(IntNumber)					\
 X(RealNumber)					\
 X(BinaryNumber)					\
@@ -21,24 +22,27 @@ X(OctalNumber)					\
 X(HexNumber)					\
 X(Add)							\
 X(Subtract)						\
+X(Negate)						\
 X(Multiply)						\
 X(Divide)						\
 X(Modulo)						\
 X(Exponent)						\
 X(Factorial)					\
-X(LeftShift)					\
-X(RightShift)					\
 X(BitOR)						\
 X(BitAND)						\
 X(BitXOR)						\
 X(BitNOT)						\
-X(ShiftLeft)					\
-X(ShiftRight)					\
+X(BitshiftLeft)					\
+X(BitshiftRight)				\
 X(Equal)						\
+X(NotEqual)						\
 X(LessThan)						\
+X(LessOrEqual)					\
 X(GreaterThan)					\
-X(AbsOpen)						\
-X(AbsClose)						\
+X(GreaterOrEqual)				\
+X(LogicalNOT)					\
+X(LogicalOR)					\
+X(LogicalAND)					\
 
 #define X(name) name,
 	/**
@@ -57,14 +61,31 @@ X(AbsClose)						\
 	};
 #undef X
 
+	/// @brief	Determines whether the specified PrimitiveTokenType represents a number.
 	constexpr bool is_number(PrimitiveTokenType const tokenType) noexcept
 	{
 		switch (tokenType) {
+		case PrimitiveTokenType::Boolean:
 		case PrimitiveTokenType::BinaryNumber:
 		case PrimitiveTokenType::OctalNumber:
 		case PrimitiveTokenType::HexNumber:
 		case PrimitiveTokenType::IntNumber:
 		case PrimitiveTokenType::RealNumber:
+			return true;
+		default:
+			return false;
+		}
+	}
+	/// @brief	Determines whether the specified PrimitiveTokenType represents anything
+	///          that evaluates to a number.
+	constexpr bool evaluates_to_number(PrimitiveTokenType const tokenType) noexcept
+	{
+		if (is_number(tokenType)) return true;
+		switch (tokenType) {
+		case PrimitiveTokenType::Variable:
+		case PrimitiveTokenType::ExpressionOpen:
+		case PrimitiveTokenType::ExpressionClose:
+		case PrimitiveTokenType::FunctionName:
 			return true;
 		default:
 			return false;

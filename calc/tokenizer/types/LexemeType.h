@@ -46,8 +46,8 @@ X(_EOF)						\
 	};
 #undef X
 
-	/// @brief	Determines whether the specified lexeme type is a number or not.
-	inline bool lexemeTypeIsNumber(LexemeType const& lexType)
+	/// @brief	Determines whether the specified LexemeType is a number or not.
+	constexpr bool is_number(LexemeType const& lexType)
 	{
 		switch (lexType) {
 		case LexemeType::BinaryNumber:
@@ -55,6 +55,20 @@ X(_EOF)						\
 		case LexemeType::HexNumber:
 		case LexemeType::IntNumber:
 		case LexemeType::RealNumber:
+			return true;
+		default:
+			return false;
+		}
+	}
+	/// @brief	Determines whether the specified LexemeType represents anything
+	///          that evaluates to a number.
+	constexpr bool evaluates_to_number(LexemeType const tokenType) noexcept
+	{
+		if (is_number(tokenType)) return true;
+		switch (tokenType) {
+		case LexemeType::Alpha:
+		case LexemeType::ParenthesisOpen:
+		case LexemeType::ParenthesisClose:
 			return true;
 		default:
 			return false;

@@ -170,8 +170,15 @@ namespace calc::expr::tkn {
 			switch (lex.type) {
 			case LexemeType::Semicolon:
 				return{ { PrimitiveTokenType::Separator, lex } };
-			case LexemeType::Colon: [[fallthrough]];
 			case LexemeType::Equal:
+				if (iterator != end) {
+					if (const auto& next{ iterator + 1 }; next->type == LexemeType::Equal && lex.isAdjacentTo(*next)) {
+						// is Equal comparison operator
+						return{ combine_tokens(PrimitiveTokenType::Equal, lex, *++iterator) };
+					}
+				}
+				[[fallthrough]];
+			case LexemeType::Colon:
 				return{ { PrimitiveTokenType::Setter, lex } };
 			case LexemeType::Comma:
 				return{ { PrimitiveTokenType::TermSeparator, lex } };
@@ -180,21 +187,32 @@ namespace calc::expr::tkn {
 				case '+':
 					return{ { PrimitiveTokenType::Add, lex } };
 				case '-': {
-					if (const auto& next{ (iterator + 1) };
-						next != end && (previousPrimitive == nullptr
-										|| previousPrimitive->type == PrimitiveTokenType::TermSeparator
-										|| OperatorPrecedence::IsOperator(previousPrimitive->type))) {
-						// handle negative numbers
-						switch (next->type) {
-						case LexemeType::IntNumber:
-							++iterator;
-							return{ combine_tokens(PrimitiveTokenType::IntNumber, lex, *next) };
-						case LexemeType::RealNumber:
-							++iterator;
-							return{ combine_tokens(PrimitiveTokenType::RealNumber, lex, *next) };
-						}
+					// determine whether this is a subtact or negate operator
+
+					if (const auto& next{ iterator + 1 }; next != end
+						&& (previousPrimitive == nullptr || !evaluates_to_number(previousPrimitive->type))
+						&& evaluates_to_number(next->type)) {
+						// is negate operator
+						return{ { PrimitiveTokenType::Negate, lex } };
 					}
-					return{ { PrimitiveTokenType::Subtract, lex } };
+					else // is subtract operator
+						return{ { PrimitiveTokenType::Subtract, lex } };
+
+					//if (const auto& next{ (iterator + 1) };
+					//	next != end && (previousPrimitive == nullptr
+					//					|| previousPrimitive->type == PrimitiveTokenType::TermSeparator
+					//					|| OperatorPrecedence::IsOperator(previousPrimitive->type))) {
+					//	// handle negative numbers
+					//	switch (next->type) {
+					//	case LexemeType::IntNumber:
+					//		++iterator;
+					//		return{ combine_tokens(PrimitiveTokenType::IntNumber, lex, *next) };
+					//	case LexemeType::RealNumber:
+					//		++iterator;
+					//		return{ combine_tokens(PrimitiveTokenType::RealNumber, lex, *next) };
+					//	}
+					//}
+					//return{ { PrimitiveTokenType::Subtract, lex } };
 				}
 				case '*':
 					return{ { PrimitiveTokenType::Multiply, lex } };
@@ -203,34 +221,37 @@ namespace calc::expr::tkn {
 				case '%':
 					return{ { PrimitiveTokenType::Modulo, lex } };
 				case '!':
-					return{ { PrimitiveTokenType::Factorial, lex } };
-				case '|': {
-					// TODO: Add absolute value handling ("|a+b|")
-					//       Must be adjacent and have a closing char to be an abs
-
-					//if (auto it{ iterator + 1 }; lex.isAdjacentTo(*it)) {
-					//	long depth{ 0 };
-					//	for (auto prev_it{ iterator }; it != end; ++it, ++prev_it) {
-					//		if (!depth && !it->isAdjacentTo(*prev_it))
-					//			break; //< there was non-enclosed whitespace
-					//		switch (it->type) {
-					//		case LexemeType::ParenthesisOpen:
-					//			++depth;
-					//			break;
-					//		case LexemeType::ParenthesisClose:
-					//			if (--depth < 0)
-					//				goto BREAK;
-					//			break;
-					//		case LexemeType::Operator:
-					//			if (it->text.front() == '|')
-					//			break;
-					//		}
-					//	}
-					//BREAK:
-					//}
+					if (iterator != end) {
+						// if the next token is adjacent and an equal sign
+						if (const auto next{ iterator + 1 }; lex.isAdjacentTo(*next) && next->type == LexemeType::Equal) {
+							// is NotEqual comparison operator
+							return{ combine_tokens(PrimitiveTokenType::NotEqual, lex, *++iterator) };
+						}
+					}
+					// if the previous token is adjacent & an operand
+					if (previousPrimitive != nullptr && lex.isAdjacentTo(*previousPrimitive) && evaluates_to_number(previousPrimitive->type)) {
+						// is Factorial
+						return{ { PrimitiveTokenType::Factorial, lex } };
+					}
+					else// is LogicalNOT
+						return{ { PrimitiveTokenType::LogicalNOT, lex } };
+				case '|':
+					if (iterator != end) {
+						// if the next token is adjacent and also a vertical bar
+						if (const auto& next{ iterator + 1 }; lex.isAdjacentTo(*next) && next->type == LexemeType::Operator && next->text == "|") {
+							// is LogicalOR
+							return{ combine_tokens(PrimitiveTokenType::LogicalOR, lex, *++iterator) };
+						}
+					}
 					return{ { PrimitiveTokenType::BitOR, lex } };
-				}
 				case '&':
+					if (iterator != end) {
+						// if the next token is adjacent and also an ampersand
+						if (const auto& next{ iterator + 1 }; lex.isAdjacentTo(*next) && next->type == LexemeType::Operator && next->text == "&") {
+							// is LogicalAND
+							return{ combine_tokens(PrimitiveTokenType::LogicalAND, lex, *++iterator) };
+						}
+					}
 					return{ { PrimitiveTokenType::BitAND, lex } };
 				case '^':
 					return{ { settings.caretIsExponent ? PrimitiveTokenType::Exponent : PrimitiveTokenType::BitXOR, lex } };
@@ -240,25 +261,37 @@ namespace calc::expr::tkn {
 					throw make_exception("primitive_tokenizer::getNextPrimitive():  No implementation available for operator type \"", lex.text, '\"');
 				}
 			case LexemeType::AngleBracketOpen:
-				// left bitshift or less than
-				if (iterator != end && (iterator + 1)->type == LexemeType::AngleBracketOpen) {
-					// left bitshift
-					return{ combine_tokens(PrimitiveTokenType::LeftShift, lex, *++iterator) };
+				if (iterator != end) {
+					// if the next token is adjacent
+					if (const auto& next{ iterator + 1 }; lex.isAdjacentTo(*next)) {
+						if (next->type == LexemeType::AngleBracketOpen) {
+							// left bitshift
+							return{ combine_tokens(PrimitiveTokenType::BitshiftLeft, lex, *++iterator) };
+						}
+						else if (next->type == LexemeType::Equal) {
+							// is less or equal
+							return{ combine_tokens(PrimitiveTokenType::LessOrEqual, lex, *++iterator) };
+						}
+					}
 				}
-				else {
-					// less than
-					return{ { PrimitiveTokenType::LessThan, lex } };
-				}
+				// less than
+				return{ { PrimitiveTokenType::LessThan, lex } };
 			case LexemeType::AngleBracketClose:
-				// right bitshift or greater than
-				if (iterator != end && (iterator + 1)->type == LexemeType::AngleBracketClose) {
-					// right bitshift
-					return{ combine_tokens(PrimitiveTokenType::RightShift, lex, *++iterator) };
+				if (iterator != end) {
+					// if the next token is adjacent
+					if (const auto& next{ iterator + 1 }; lex.isAdjacentTo(*next)) {
+						if (next->type == LexemeType::AngleBracketClose) {
+							// right bitshift
+							return{ combine_tokens(PrimitiveTokenType::BitshiftRight, lex, *++iterator) };
+						}
+						else if (next->type == LexemeType::Equal) {
+							// is greater or equal
+							return{ combine_tokens(PrimitiveTokenType::GreaterOrEqual, lex, *++iterator) };
+						}
+					}
 				}
-				else {
-					// greater than
-					return{ { PrimitiveTokenType::GreaterThan, lex } };
-				}
+				// greater than
+				return{ { PrimitiveTokenType::GreaterThan, lex } };
 			case LexemeType::SquareBracketOpen:
 				return{ { PrimitiveTokenType::ArrayOpen, lex } };
 			case LexemeType::SquareBracketClose:
@@ -274,51 +307,60 @@ namespace calc::expr::tkn {
 			case LexemeType::RealNumber:
 				return{ { PrimitiveTokenType::RealNumber, lex } };
 			case LexemeType::Alpha:
-			{ // function or variable
-				if (const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha, LexemeType::Underscore) };
-					nextNonAlpha != end && nextNonAlpha->type == LexemeType::ParenthesisOpen
-					&& isFunctionName(stringify_tokens<false>(iterator, nextNonAlpha))) {
-					// is a function
-					std::vector<primitive> functionSegments{
-						combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
-					};
+			{ // function, variable, or boolean literal
+				const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha, LexemeType::Underscore) };
+				if (nextNonAlpha != end) {
+					// stringify adjacent alpha tokens
+					const auto alphaStr{ stringify_tokens<false>(iterator, nextNonAlpha) };
 
-					// add the function param open token
-					functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *nextNonAlpha });
+					if (alphaStr == "true" || alphaStr == "false") {
+						// is boolean literal
 
-					// get pointer for function param close
-					const auto& paramEndBracket{ findEndBracket(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
+						iterator = nextNonAlpha - 1; //< update the iterator
 
-					if (paramEndBracket == end)
-						throw make_exception(make_error_message_from(nextNonAlpha, "Syntax Error: Function \"", functionSegments.front().text, "\" has unmatched opening bracket!"));
-
-					// get the lexemes inside of the brackets (if there are any)
-					if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
-						// Recursively tokenize the inner lexemes
-						const auto inner{ primitive_tokenizer{ getRange(nextNonAlpha + 1, paramEndBracket), functionMap }.tokenize() }; //< RECURSE
-						functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
+						return{ { PrimitiveTokenType::Boolean, lex.pos, alphaStr } };
 					}
+					else if (nextNonAlpha->type == LexemeType::ParenthesisOpen && isFunctionName(alphaStr)) {
+						// is function name
+						std::vector<primitive> functionSegments{
+							combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
+						};
 
-					functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionClose, *paramEndBracket });
-					iterator = paramEndBracket; //< update the iterator
+						// add the function param open token
+						functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *nextNonAlpha });
 
-					return functionSegments;
-				}
-				else {
-					// is a variable
-					std::vector<primitive> variables;
-					variables.reserve(std::distance(iterator, nextNonAlpha));
+						// get pointer for function param close
+						const auto& paramEndBracket{ findEndBracket(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
 
-					for (; current != nextNonAlpha; ++current) {
-						variables.emplace_back(primitive{ PrimitiveTokenType::Variable, *current });
+						if (paramEndBracket == end)
+							throw make_exception(make_error_message_from(nextNonAlpha, "Syntax Error: Function \"", functionSegments.front().text, "\" has unmatched opening bracket!"));
+
+						// get the lexemes inside of the brackets (if there are any)
+						if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
+							// Recursively tokenize the inner lexemes
+							const auto inner{ primitive_tokenizer{ getRange(nextNonAlpha + 1, paramEndBracket), functionMap }.tokenize() }; //< RECURSE
+							functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
+						}
+
+						functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionClose, *paramEndBracket });
+						iterator = paramEndBracket; //< update the iterator
+
+						return functionSegments;
 					}
-
-					--current;
-
-					// no need to shrink since the returned vector is temporary
-					return std::move(variables);
 				}
-				break;
+
+				// is a variable
+				std::vector<primitive> variables;
+				variables.reserve(std::distance(iterator, nextNonAlpha));
+
+				for (; current != nextNonAlpha; ++current) {
+					variables.emplace_back(primitive{ PrimitiveTokenType::Variable, *current });
+				}
+
+				--current;
+
+				// no need to shrink since the returned vector is temporary
+				return std::move(variables);
 			}
 			case LexemeType::ParenthesisOpen:
 			{

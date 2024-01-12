@@ -101,4 +101,19 @@ namespace calc {
 			? a
 			: b;
 	}
+
+
+	template<std::integral T>
+	T factorial(T const n)
+	{
+		if constexpr (std::signed_integral<T>) {
+			if (n < 0) throw make_exception("Factorial operation expects a positive integer; received ", n, '!');
+		}
+
+		T result{ 1 };
+		for (auto i{ n }; i > 1; --i) {
+			result *= i;
+		}
+		return result;
+	}
 }

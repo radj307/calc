@@ -35,6 +35,7 @@ namespace calc {
 		constexpr Number(double const value) : value{ static_cast<real_t>(value) } {}
 		constexpr Number(float const value) : value{ static_cast<real_t>(value) } {}
 	#pragma endregion Floating-Point Ctors
+		constexpr Number(bool const value) : value{ static_cast<int_t>(value) } {}
 
 	#pragma region Integral Conversion Operators
 		constexpr operator int8_t() const noexcept { return cast_to<int8_t>(); }
@@ -53,6 +54,7 @@ namespace calc {
 		constexpr operator double() const noexcept { return cast_to<double>(); }
 		constexpr operator real_t() const noexcept { return cast_to<real_t>(); }
 	#pragma endregion Floating-Point Conversion Operators
+		constexpr operator bool() const noexcept { return !is_zero(); }
 
 		static Number from_binary(std::string const& binaryNumber)
 		{
@@ -80,11 +82,21 @@ namespace calc {
 		constexpr bool is_real() const noexcept { return is_type<real_t>(); }
 
 		/// @brief	Determines if the numeric value is an integral or not.
-		bool has_integral_value() const noexcept
+		constexpr bool has_integral_value() const noexcept
 		{
 			if (is_integer()) return true;
 			const auto v{ std::get<real_t>(value) };
 			return std::truncl(v) == v;
+		}
+		/// @brief	Determines if the numeric value is equal to zero.
+		constexpr bool is_zero() const noexcept
+		{
+			return std::visit([](auto&& n) { return n == 0; }, value);
+		}
+		/// @brief	Determines if the numeric value is greater than zero.
+		constexpr bool is_positive() const noexcept
+		{
+			return std::visit([](auto&& n) { return n > 0; }, value);
 		}
 
 		friend bool operator==(const Number& l, const Number& r)
@@ -127,6 +139,11 @@ namespace calc {
 						return Number{ lVal % rVal }; //< lVal & rVal are both int
 					else return Number{ fmodl(lVal, rVal) };
 				} }, l.value, r.value);
+		}
+		/// @brief	Negation Operator
+		friend Number operator-(const Number& n)
+		{
+			return std::visit([](auto&& n) { return Number{ -n }; }, n.value);
 		}
 		/// @brief	Bitwise OR operator
 		friend Number operator|(const Number& l, const Number& r)
@@ -179,6 +196,7 @@ namespace calc {
 					else return Number{ static_cast<typename Number::int_t>(lVal) ^ static_cast<typename Number::int_t>(rVal) };
 				} }, l.value, r.value);
 		}
+		/// @brief	Bitwise NOT operator
 		friend Number operator~(const Number& n)
 		{
 			if (!n.has_integral_value())
@@ -189,6 +207,66 @@ namespace calc {
 						return Number{ ~n }; //< is int
 					else return Number{ ~static_cast<typename Number::int_t>(n) };
 				} }, n.value);
+		}
+		/// @brief	Bitshift-right operator
+		friend Number operator>>(Number const& l, Number const& r)
+		{
+			if (!l.has_integral_value())
+				throw make_exception("Operator >> (BitshiftRight) requires integral types, but the left-side operand was ", str::to_string(std::get<real_t>(l.value), 16), "!");
+			else if (!r.has_integral_value())
+				throw make_exception("Operator >> (BitshiftRight) requires integral types, but the right-side operand was ", str::to_string(std::get<real_t>(r.value), 16), "!");
+
+			return std::visit([](auto&& lVal, auto&& rVal) { {
+					using Tl = std::decay_t<decltype(lVal)>;
+					using Tr = std::decay_t<decltype(rVal)>;
+
+					if constexpr (std::same_as<Tl, typename Number::int_t> && std::same_as<Tr, typename Number::int_t>)
+						return Number{ lVal >> rVal }; //< both sides are int
+					else return Number{ static_cast<typename Number::int_t>(lVal) >> static_cast<typename Number::int_t>(rVal) };
+				} }, l.value, r.value);
+		}
+		/// @brief	Bitshift-left operator
+		friend Number operator<<(Number const& l, Number const& r)
+		{
+			if (!l.has_integral_value())
+				throw make_exception("Operator << (BitshiftLeft) requires integral types, but the left-side operand was ", str::to_string(std::get<real_t>(l.value), 16), "!");
+			else if (!r.has_integral_value())
+				throw make_exception("Operator << (BitshiftLeft) requires integral types, but the right-side operand was ", str::to_string(std::get<real_t>(r.value), 16), "!");
+
+			return std::visit([](auto&& lVal, auto&& rVal) { {
+					using Tl = std::decay_t<decltype(lVal)>;
+					using Tr = std::decay_t<decltype(rVal)>;
+
+					if constexpr (std::same_as<Tl, typename Number::int_t> && std::same_as<Tr, typename Number::int_t>)
+						return Number{ lVal << rVal }; //< both sides are int
+					else return Number{ static_cast<typename Number::int_t>(lVal) << static_cast<typename Number::int_t>(rVal) };
+				} }, l.value, r.value);
+		}
+
+		/// @returns	true when the value is zero; otherwise, false.
+		friend bool operator!(Number const& n)
+		{
+			return n.is_zero();
+		}
+		/// @returns	true when a is less than b; otherwise, false.
+		friend bool operator<(Number const& a, Number const& b)
+		{
+			return std::visit([](auto&& a, auto&& b) { return a < b; }, a.value, b.value);
+		}
+		/// @returns	true when a is less than or equal to b; otherwise, false.
+		friend bool operator<=(Number const& a, Number const& b)
+		{
+			return std::visit([](auto&& a, auto&& b) { return a <= b; }, a.value, b.value);
+		}
+		/// @returns	true when a is greater than b; otherwise, false.
+		friend bool operator>(Number const& a, Number const& b)
+		{
+			return std::visit([](auto&& a, auto&& b) { return a > b; }, a.value, b.value);
+		}
+		/// @returns	true when a is greater than or equal to b; otherwise, false.
+		friend bool operator>=(Number const& a, Number const& b)
+		{
+			return std::visit([](auto&& a, auto&& b) { return a >= b; }, a.value, b.value);
 		}
 
 		template<var::numeric T>

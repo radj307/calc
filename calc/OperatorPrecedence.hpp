@@ -42,22 +42,41 @@ namespace calc::expr {
 	// higher values have higher precedence
 	inline const std::map<PrimitiveTokenType, uint8_t> OperatorPrecedence::map{
 		// [F] Functions
-		std::make_pair(PrimitiveTokenType::Factorial, 4),
-		std::make_pair(PrimitiveTokenType::FunctionName, 4),
+		std::make_pair(PrimitiveTokenType::Factorial, 6),
+		std::make_pair(PrimitiveTokenType::FunctionName, 6),
 		// [E] Exponents
-		std::make_pair(PrimitiveTokenType::Exponent, 3),
+		std::make_pair(PrimitiveTokenType::Exponent, 5),
+		// Negate
+		std::make_pair(PrimitiveTokenType::Negate, 4),
 		// [DM] Mult/Div
-		std::make_pair(PrimitiveTokenType::Multiply, 2),
-		std::make_pair(PrimitiveTokenType::Divide, 2),
-		std::make_pair(PrimitiveTokenType::Modulo, 2),
+		std::make_pair(PrimitiveTokenType::Multiply, 3),
+		std::make_pair(PrimitiveTokenType::Divide, 3),
+		std::make_pair(PrimitiveTokenType::Modulo, 3),
 		// [AS] Add/Sub
-		std::make_pair(PrimitiveTokenType::Add, 1),
-		std::make_pair(PrimitiveTokenType::Subtract, 1),
+		std::make_pair(PrimitiveTokenType::Add, 2),
+		std::make_pair(PrimitiveTokenType::Subtract, 2),
+
+		// Bitwise Shift
+		std::make_pair(PrimitiveTokenType::BitshiftLeft, 3),
+		std::make_pair(PrimitiveTokenType::BitshiftRight, 3),
 		// Bitwise NOT
-		std::make_pair(PrimitiveTokenType::BitNOT, 1),
+		std::make_pair(PrimitiveTokenType::BitNOT, 2),
 		// Bitwise AND/OR/XOR
-		std::make_pair(PrimitiveTokenType::BitAND, 0),
-		std::make_pair(PrimitiveTokenType::BitOR, 0),
-		std::make_pair(PrimitiveTokenType::BitXOR, 0),
+		std::make_pair(PrimitiveTokenType::BitAND, 1),
+		std::make_pair(PrimitiveTokenType::BitOR, 1),
+		std::make_pair(PrimitiveTokenType::BitXOR, 1),
+
+		// Boolean Not
+		std::make_pair(PrimitiveTokenType::LogicalNOT, 2),
+		// Comparison operators
+		std::make_pair(PrimitiveTokenType::Equal, 1),
+		std::make_pair(PrimitiveTokenType::NotEqual, 1),
+		std::make_pair(PrimitiveTokenType::LessThan, 1),
+		std::make_pair(PrimitiveTokenType::LessOrEqual, 1),
+		std::make_pair(PrimitiveTokenType::GreaterThan, 1),
+		std::make_pair(PrimitiveTokenType::GreaterOrEqual, 1),
+		// Boolean operators
+		std::make_pair(PrimitiveTokenType::LogicalOR, 0),
+		std::make_pair(PrimitiveTokenType::LogicalAND, 0),
 	};
 }
