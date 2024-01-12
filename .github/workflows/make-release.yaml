@@ -83,7 +83,6 @@ jobs:
         run: |
           if [ "${{github.event.inputs.tag}}" == "" ]; then TAG="${GITHUB_REF/refs\/tags\//}"; else TAG="${{github.event.inputs.tag}}" ; fi
           echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
-          echo ::set-output name=NAME::"Release $TAG"
 
       - name: Create release
         uses: softprops/action-gh-release@v1
