@@ -66,7 +66,7 @@ namespace calc::expr {
 		std::make_pair(PrimitiveTokenType::BitOR, 1),
 		std::make_pair(PrimitiveTokenType::BitXOR, 1),
 
-		// Boolean Not
+		// Logical NOT
 		std::make_pair(PrimitiveTokenType::LogicalNOT, 2),
 		// Comparison operators
 		std::make_pair(PrimitiveTokenType::Equal, 1),
@@ -75,8 +75,8 @@ namespace calc::expr {
 		std::make_pair(PrimitiveTokenType::LessOrEqual, 1),
 		std::make_pair(PrimitiveTokenType::GreaterThan, 1),
 		std::make_pair(PrimitiveTokenType::GreaterOrEqual, 1),
-		// Boolean operators
-		std::make_pair(PrimitiveTokenType::LogicalOR, 0),
+		// Logical AND/OR
 		std::make_pair(PrimitiveTokenType::LogicalAND, 0),
+		std::make_pair(PrimitiveTokenType::LogicalOR, 0),
 	};
 }
