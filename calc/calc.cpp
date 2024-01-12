@@ -241,7 +241,7 @@ int main(const int argc, char** argv)
 			// evaluate the remaining expression
 			try {
 				// convert to RPN
-				const auto rpnExpr{ expr::to_rpn(expr) };
+				const auto rpnExpr{ expr::to_rpn(expr, fnmap) };
 
 			#pragma region Expression Debug
 				if (debugExpressions) {

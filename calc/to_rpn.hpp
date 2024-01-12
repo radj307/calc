@@ -15,14 +15,15 @@ namespace calc::expr {
 	 * @param primitives  -	Vector of primitive tokens to convert to an expression in RPN.
 	 * @returns				A vector of primitives in RPN, with unnecessary tokens discarded.
 	 */
-	inline std::vector<tkn::primitive> to_rpn(std::vector<tkn::primitive> const& primitives)
+	inline std::vector<tkn::primitive> to_rpn(std::vector<tkn::primitive> const& primitives, FunctionMap const& fnMap)
 	{
 		std::vector<tkn::primitive> result; //< queue
 		result.reserve(primitives.size());
 
 		std::stack<tkn::primitive> operators;
 
-		for (auto const& tkn : primitives) {
+		for (auto it{ primitives.begin() }, it_end{ primitives.end() }; it != it_end; ++it) {
+			const auto& tkn{ *it };
 			switch (tkn.type) {
 			case PrimitiveTokenType::BinaryNumber: //< BINARY INTEGRAL
 			case PrimitiveTokenType::OctalNumber: //< OCTAL INTEGRAL
@@ -72,6 +73,36 @@ namespace calc::expr {
 
 				break;
 			}
+			case PrimitiveTokenType::FunctionName: {
+				// verify function is called with the correct number of parameters
+				const auto paramsCount{ fnMap.getParamsCount(tkn.text) };
+				auto count{ 0u };
+
+				// look ahead until the closing function bracket
+				unsigned depth{ 0u };
+				for (auto fwdit{ it }; fwdit != it_end; ++fwdit) {
+					switch (fwdit->type) {
+					case PrimitiveTokenType::ExpressionOpen:
+						if (++depth == 2)
+							++count; //< bracketed subexpression ( ex: "pow(2, (10 + 1))" )
+						break;
+					case PrimitiveTokenType::ExpressionClose:
+						if (--depth == 0)
+							goto BREAK_LOOKAHEAD;
+						break;
+					default:
+						if (depth == 1 && evaluates_to_number(fwdit->type))
+							++count;
+						break;
+					}
+				}
+			BREAK_LOOKAHEAD:
+
+				if (count != paramsCount) // throw on parameter count mismatch:
+					throw make_exception("Function \"", tkn.text, "\" expects ", paramsCount, " parameters but ", count, ' ', (count == 1 ? "was" : "were"), " provided!");
+
+				[[fallthrough]];
+			}
 			default: {
 				// operators:
 				const auto tknPrecedence{ OperatorPrecedence::Get(tkn.type, -1) };
@@ -80,7 +111,7 @@ namespace calc::expr {
 					throw make_exception("Token type \"", PrimitiveTokenTypeNames[(int)tkn.type], "\" is not a recognized operator!");
 
 				// pop all of the lower-precedence operators into the result (if any)
-				while (!operators.empty() 
+				while (!operators.empty()
 					   && operators.top().type != PrimitiveTokenType::ExpressionOpen
 					   && OperatorPrecedence::Get(operators.top().type) >= tknPrecedence) {
 					result.emplace_back(pop_off(operators));
