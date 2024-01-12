@@ -20,7 +20,7 @@ jobs:
       fail-fast: true
 
     steps:
-      - uses: checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
