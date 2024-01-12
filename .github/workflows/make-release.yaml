@@ -45,6 +45,9 @@ jobs:
 
       - name: Build
         run:  cmake --build out/build --config Release
+        env:
+          CC: gcc
+          CXX: g++
 
       - name: Compress
         if: ${{ runner.os == 'Windows' }}
