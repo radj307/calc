@@ -5,9 +5,9 @@
 #include <strconv.hpp>
 
 // STL
-#include <cstdint>
-#include <variant>
-#include <utility>
+#include <cstdint>		//< for int typedefs
+#include <cmath>		//< for std::trunc
+#include <variant>		//< for std::variant
 
 namespace calc {
 	struct Number {
@@ -19,34 +19,21 @@ namespace calc {
 
 		constexpr Number() = default;
 	#pragma region Integral Ctors
-		constexpr Number(int8_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(int8_t&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(int16_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(int16_t&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(int32_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(int32_t&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(long const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(long&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(int64_t const& value) : value{ value } {}
-		constexpr Number(int64_t&& value) : value{ std::forward<int_t>(value) } {}
-		constexpr Number(uint8_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint8_t&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint16_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint16_t&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint32_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint32_t&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(unsigned long const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(unsigned long&& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint64_t const& value) : value{ static_cast<int_t>(value) } {}
-		constexpr Number(uint64_t&& value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int8_t const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int16_t const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(int32_t const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(long const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(long long const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint8_t const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint16_t const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(uint32_t const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(unsigned long const value) : value{ static_cast<int_t>(value) } {}
+		constexpr Number(unsigned long long const value) : value{ static_cast<int_t>(value) } {}
 	#pragma endregion Integral Ctors
 	#pragma region Floating-Point Ctors
-		constexpr Number(real_t const& value) : value{ value } {}
-		constexpr Number(real_t&& value) : value{ std::forward<real_t>(value) } {}
-		constexpr Number(double const& value) : value{ static_cast<real_t>(value) } {}
-		constexpr Number(double&& value) : value{ static_cast<real_t>(value) } {}
-		constexpr Number(float const& value) : value{ static_cast<real_t>(value) } {}
-		constexpr Number(float&& value) : value{ static_cast<real_t>(value) } {}
+		constexpr Number(long double const value) : value{ static_cast<real_t>(value) } {}
+		constexpr Number(double const value) : value{ static_cast<real_t>(value) } {}
+		constexpr Number(float const value) : value{ static_cast<real_t>(value) } {}
 	#pragma endregion Floating-Point Ctors
 
 	#pragma region Integral Conversion Operators
@@ -54,12 +41,12 @@ namespace calc {
 		constexpr operator int16_t() const noexcept { return cast_to<int16_t>(); }
 		constexpr operator int32_t() const noexcept { return cast_to<int32_t>(); }
 		constexpr operator long() const noexcept { return cast_to<long>(); }
-		constexpr operator int64_t() const noexcept { return cast_to<int64_t>(); }
+		constexpr operator long long() const noexcept { return cast_to<long long>(); }
 		constexpr operator uint8_t() const noexcept { return cast_to<uint8_t>(); }
 		constexpr operator uint16_t() const noexcept { return cast_to<uint16_t>(); }
 		constexpr operator uint32_t() const noexcept { return cast_to<uint32_t>(); }
 		constexpr operator unsigned long() const noexcept { return cast_to<unsigned long>(); }
-		constexpr operator uint64_t() const noexcept { return cast_to<uint64_t>(); }
+		constexpr operator unsigned long long() const noexcept { return cast_to<unsigned long long>(); }
 	#pragma endregion Integral Conversion Operators
 	#pragma region Floating-Point Conversion Operators
 		constexpr operator float() const noexcept { return cast_to<float>(); }

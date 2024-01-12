@@ -7,6 +7,7 @@
 #include <make_exception.hpp>
 
 // stl
+#include <cmath>
 #include <vector>
 #include <functional>
 
@@ -47,7 +48,7 @@ namespace calc {
 		virtual ~basic_operator() = default;
 
 		/// @brief	Gets the number of parameters required by the wrapped function.
-		virtual [[nodiscard]] size_t getParamsCount() const noexcept = 0;
+		[[nodiscard]] virtual size_t getParamsCount() const noexcept = 0;
 
 		/**
 		 * @brief				Invokes the wrapped function with the specified operands. Does not catch exceptions.
