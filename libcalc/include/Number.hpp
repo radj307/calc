@@ -56,19 +56,6 @@ namespace calc {
 	#pragma endregion Floating-Point Conversion Operators
 		constexpr operator bool() const noexcept { return !is_zero(); }
 
-		static Number from_binary(std::string const& binaryNumber)
-		{
-			return{ str::tonumber<int_t>(binaryNumber, 2) };
-		}
-		static Number from_octal(std::string const& octalNumber)
-		{
-			return{ str::tonumber<int_t>(octalNumber, 8) };
-		}
-		static Number from_hex(std::string const& hexNumber)
-		{
-			return{ str::tonumber<int_t>(hexNumber, 16) };
-		}
-
 		/**
 		 * @brief		Checks if this value is the specified type.
 		 * @tparam T  - The type to check.
