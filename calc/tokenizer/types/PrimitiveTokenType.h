@@ -14,7 +14,6 @@ X(FunctionName)					\
 X(ArrayOpen)					\
 X(ArrayClose)					\
 X(Separator)					\
-X(Boolean)						\
 X(IntNumber)					\
 X(RealNumber)					\
 X(BinaryNumber)					\
@@ -65,7 +64,6 @@ X(LogicalAND)					\
 	constexpr bool is_number(PrimitiveTokenType const tokenType) noexcept
 	{
 		switch (tokenType) {
-		case PrimitiveTokenType::Boolean:
 		case PrimitiveTokenType::BinaryNumber:
 		case PrimitiveTokenType::OctalNumber:
 		case PrimitiveTokenType::HexNumber:

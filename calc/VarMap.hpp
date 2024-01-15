@@ -1,6 +1,11 @@
 #pragma once
+// libcalc
 #include <Number.hpp>
 
+// 307lib
+#include <print_table.hpp>
+
+// STL
 #include <map>
 #include <string>
 #include <concepts>
@@ -40,8 +45,10 @@ namespace calc {
 
 		friend std::ostream& operator<<(std::ostream& os, VarMap const& vm)
 		{
-			// TODO
-			return os;
+			return os << term::print_table(vm.map.begin(), vm.map.end(), {
+				{ "Name", [](auto&& pr) { return pr.first; } },
+				{ "Value", [](auto&& pr) { return str::stringify(pr.second); } },
+										   });
 		}
 	};
 }

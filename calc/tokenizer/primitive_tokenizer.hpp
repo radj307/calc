@@ -14,6 +14,7 @@ namespace calc::expr::tkn {
 	/// @brief	 Tokenizer that converts lexemes into primitive tokens, and performs syntax analysis to verify that the expression uses valid syntax.
 	class primitive_tokenizer {
 		using const_iterator = typename std::vector<lexeme>::const_iterator;
+		using const_reverse_iterator = typename std::vector<lexeme>::const_reverse_iterator;
 
 	protected:
 		const std::vector<lexeme> lexemes;
@@ -22,43 +23,67 @@ namespace calc::expr::tkn {
 		const_iterator current;
 		FunctionMap const* const functionMap{ nullptr };
 
-		template<size_t INDENT = 10, var::streamable... Ts>
-		std::string make_error_message_from(const_iterator const& iterator, Ts&&... message)
+		/// @brief	Gets the specified range of the expression as a string.
+		template<bool INCLUDE_WS = false>
+		std::string get_expr_as_string(const_iterator const& begin, const_iterator const& end) const
+		{
+			return stringify_tokens<INCLUDE_WS>(begin, end);
+		}
+		/// @brief	Gets the entire expression as a string.
+		std::string get_expr_as_string() const
+		{
+			return get_expr_as_string<true>(lexemes.begin(), lexemes.back().type == LexemeType::_EOF ? lexemes.end() - 1 : lexemes.end());
+		}
+
+		/**
+		 * @brief				Creates an formatted error message that indicates the token that caused the error.
+		 * @param beginTkn	  -	Begin iterator of the error range. (the '~' chars start here)
+		 * @param endTkn	  -	(Exclusive) end iterator of the error range. (the '~' chars stop just before here)
+		 * @param errorTkn	  -	Iterator for the token that caused the error. (the '^' char is shown here)
+		 * @param message	  -	The error message to display.
+		 * @param indent_sz	  -	The length of the indent to put at the beginning of each line after the first one.
+		 * @returns				
+		 */
+		std::string make_error_msg(const_iterator const& beginTkn, const_iterator const& endTkn, const_iterator const& errorTkn, std::string const& message, size_t const indent_sz = 10) const
 		{
 			std::stringstream ss;
 
-			const auto expr_str{ stringify_tokens(lexemes.begin(), lexemes.back().type == LexemeType::_EOF ? lexemes.end() - 1 : lexemes.end()) };
-			ss << expr_str << '\n';
-			ss << indent(INDENT) << csync(color::dark_red) << indent(iterator->pos, 0, '~') << csync(color::red) << '^' << csync(color::dark_red) << indent(expr_str.size(), iterator->getEndPos(), '~') << csync() << '\n';
+			const auto expr_str{ get_expr_as_string() };
 
-			if (sizeof...(Ts) > 0) {
-				ss << indent(INDENT);
-				(ss << ... << message);
-				ss << '\n';
-			}
+			size_t endPos{ expr_str.size() };
+			if (endTkn != end) endPos = endTkn->pos;
+
+			// print the entire expression
+			ss << expr_str << '\n';
+
+			// print the error indicator
+			ss
+				<< indent(indent_sz + beginTkn->pos)
+				<< csync(color::dark_red) << indent(errorTkn->pos, beginTkn->pos, '~')
+				<< csync(color::red) << indent(errorTkn->getEndPos(), errorTkn->pos, '^')
+				<< csync(color::dark_red) << indent(endPos, errorTkn->getEndPos(), '~')
+				<< csync() << '\n'
+				;
+
+			// print the error message
+			if (!message.empty())
+				ss << indent(indent_sz) << message << '\n';
 
 			return ss.str();
 		}
 
-		/// @returns	true when functionName is a function in the functionMap; otherwise, false.
 		bool isFunctionName(std::string const& functionName) const noexcept
 		{
 			return functionMap != nullptr
 				&& functionMap->isFunction(functionName);
 		}
 
-		/// @brief					Checks if the iterator has reached the end of the available lexemes
-		/// @param orEofLexeme	  -	When true, also checks if the iterator is at the _EOF lexeme.
-		/// @returns				true when the iterator is at the end (or EOF lexeme); otherwise, false.
-		bool at_end() const noexcept
-		{
-			return current == end;
-		}
-		bool hasNext() const noexcept
-		{
-			return !at_end() && std::distance(current, end) >= 1;
-		}
-
+		/**
+		 * @brief			Gets the specified range of tokens as a vector.
+		 * @param begin   -	The beginning of the range.
+		 * @param end	  -	The (exclusive) end of the range.
+		 * @returns			A std::vector containing the specified range of lexemes.
+		 */
 		std::vector<lexeme> getRange(const_iterator const& begin, const_iterator const& end)
 		{
 			const auto distance{ std::distance(begin, end) };
@@ -78,21 +103,62 @@ namespace calc::expr::tkn {
 			return std::move(vec);
 		}
 
-		const_iterator findEndBracket(const_iterator const& start, const LexemeType openBracketType, const LexemeType closeBracketType) const
+		std::pair<const_iterator, size_t> findPairClose(const_iterator const& startAt, const_iterator const& stopBefore, const LexemeType openTknType, const LexemeType closeTknType, size_t targetDepth = 0) const
 		{
 			size_t depth{ 0 };
 
-			for (auto it{ start }; it != end; ++it) {
-				if (it->type == openBracketType) {
+			for (auto it{ startAt }; it != stopBefore; ++it) {
+				if (it->type == openTknType) {
 					++depth;
 				}
-				else if (it->type == closeBracketType) {
-					if (--depth == 0)
-						return it;
+				else if (it->type == closeTknType) {
+					if (--depth == targetDepth)
+						return std::make_pair(it, depth);
 				}
 			}
 
+			return std::make_pair(stopBefore, depth);
+		}
+		std::pair<const_iterator, size_t> findPairOpen(const_iterator const& startAt, const_iterator const& stopBefore, const LexemeType openTknType, const LexemeType closeTknType, size_t targetDepth = 0) const
+		{
+			size_t depth{ 0 };
+
+			for (auto it{ startAt }; it != stopBefore; ++it) {
+				if (it->type == openTknType) {
+					if (depth++ == targetDepth)
+						return std::make_pair(it, depth);
+				}
+				else if (it->type == closeTknType) {
+					if (--depth == 0)
+						break;
+				}
+			}
+
+			return std::make_pair(stopBefore, depth);
+		}
+
+		/**
+		 * @brief				Finds the next occurrence of the specified tokenType.
+		 * @param startAt	  -	Iterator to begin searching at.
+		 * @param tokenType   -	The type of token to search for.
+		 * @returns				Iterator of the next token with the specified type
+		 *						 when successful; otherwise, the end iterator.
+		 */
+		const_iterator findNext(const_iterator const& startAt, LexemeType const tokenType) const
+		{
+			for (auto it{ startAt }; it != end; ++it) {
+				if (it->type == tokenType)
+					return it;
+			}
 			return end;
+		}
+		const_iterator findPrev(const_iterator const& startAt, LexemeType const tokenType) const
+		{
+			for (auto it{ std::make_reverse_iterator(startAt) }, it_end{ lexemes.rend() }; it != it_end; ++it) {
+				if (it->type == tokenType)
+					return it.base();
+			}
+			return begin;
 		}
 
 		/**
@@ -190,29 +256,13 @@ namespace calc::expr::tkn {
 					// determine whether this is a subtact or negate operator
 
 					if (const auto& next{ iterator + 1 }; next != end
-						&& (previousPrimitive == nullptr || !evaluates_to_number(previousPrimitive->type))
+						&& (previousPrimitive == nullptr || (!evaluates_to_number(previousPrimitive->type) || previousPrimitive->type == PrimitiveTokenType::ExpressionOpen))
 						&& evaluates_to_number(next->type)) {
 						// is negate operator
 						return{ { PrimitiveTokenType::Negate, lex } };
 					}
 					else // is subtract operator
 						return{ { PrimitiveTokenType::Subtract, lex } };
-
-					//if (const auto& next{ (iterator + 1) };
-					//	next != end && (previousPrimitive == nullptr
-					//					|| previousPrimitive->type == PrimitiveTokenType::TermSeparator
-					//					|| OperatorPrecedence::IsOperator(previousPrimitive->type))) {
-					//	// handle negative numbers
-					//	switch (next->type) {
-					//	case LexemeType::IntNumber:
-					//		++iterator;
-					//		return{ combine_tokens(PrimitiveTokenType::IntNumber, lex, *next) };
-					//	case LexemeType::RealNumber:
-					//		++iterator;
-					//		return{ combine_tokens(PrimitiveTokenType::RealNumber, lex, *next) };
-					//	}
-					//}
-					//return{ { PrimitiveTokenType::Subtract, lex } };
 				}
 				case '*':
 					return{ { PrimitiveTokenType::Multiply, lex } };
@@ -306,46 +356,22 @@ namespace calc::expr::tkn {
 				return{ { PrimitiveTokenType::IntNumber, lex } };
 			case LexemeType::RealNumber:
 				return{ { PrimitiveTokenType::RealNumber, lex } };
-			case LexemeType::Alpha:
-			{ // function, variable, or boolean literal
+			case LexemeType::Alpha: { // function, variable, or boolean literal
+				// get the next non-Alpha or non-adjacent token
 				const auto& nextNonAlpha{ findFirstNonAdjacentOrNotOfType(iterator, LexemeType::Alpha, LexemeType::Underscore) };
+
 				if (nextNonAlpha != end) {
 					// stringify adjacent alpha tokens
 					const auto alphaStr{ stringify_tokens<false>(iterator, nextNonAlpha) };
 
-					if (alphaStr == "true" || alphaStr == "false") {
-						// is boolean literal
-
-						iterator = nextNonAlpha - 1; //< update the iterator
-
-						return{ { PrimitiveTokenType::Boolean, lex.pos, alphaStr } };
-					}
-					else if (nextNonAlpha->type == LexemeType::ParenthesisOpen && isFunctionName(alphaStr)) {
+					if (nextNonAlpha->type == LexemeType::ParenthesisOpen && isFunctionName(alphaStr)) {
 						// is function name
-						std::vector<primitive> functionSegments{
-							combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha))
-						};
+						const auto fn{ combine_tokens(PrimitiveTokenType::FunctionName, getRange(iterator, nextNonAlpha)) };
 
-						// add the function param open token
-						functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *nextNonAlpha });
+						// move the iterator to the last alpha pos
+						iterator = nextNonAlpha - 1;
 
-						// get pointer for function param close
-						const auto& paramEndBracket{ findEndBracket(nextNonAlpha, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
-
-						if (paramEndBracket == end)
-							throw make_exception(make_error_message_from(nextNonAlpha, "Syntax Error: Function \"", functionSegments.front().text, "\" has unmatched opening bracket!"));
-
-						// get the lexemes inside of the brackets (if there are any)
-						if (std::distance(nextNonAlpha, paramEndBracket) > 1) {
-							// Recursively tokenize the inner lexemes
-							const auto inner{ primitive_tokenizer{ getRange(nextNonAlpha + 1, paramEndBracket), functionMap }.tokenize() }; //< RECURSE
-							functionSegments.insert(functionSegments.end(), inner.begin(), inner.end());
-						}
-
-						functionSegments.emplace_back(primitive{ PrimitiveTokenType::ExpressionClose, *paramEndBracket });
-						iterator = paramEndBracket; //< update the iterator
-
-						return functionSegments;
+						return{ fn };
 					}
 				}
 
@@ -353,38 +379,19 @@ namespace calc::expr::tkn {
 				std::vector<primitive> variables;
 				variables.reserve(std::distance(iterator, nextNonAlpha));
 
-				for (; current != nextNonAlpha; ++current) {
-					variables.emplace_back(primitive{ PrimitiveTokenType::Variable, *current });
+				for (; iterator != nextNonAlpha; ++iterator) {
+					variables.emplace_back(primitive{ PrimitiveTokenType::Variable, *iterator });
 				}
 
-				--current;
+				--iterator; //< move the iterator to the last alpha token
 
 				// no need to shrink since the returned vector is temporary
 				return std::move(variables);
 			}
 			case LexemeType::ParenthesisOpen:
-			{
-				std::vector<primitive> tokens{};
-
-				const auto closeBracket{ findEndBracket(iterator, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
-
-				if (closeBracket == end)
-					throw make_exception(make_error_message_from(iterator, "Syntax Error: Unmatched opening bracket!"));
-
-				tokens.emplace_back(primitive{ PrimitiveTokenType::ExpressionOpen, *iterator });
-
-				const auto inner{ primitive_tokenizer{ getRange(iterator + 1, closeBracket), functionMap }.tokenize() };
-
-				tokens.insert(tokens.end(), inner.begin(), inner.end());
-
-				tokens.emplace_back(primitive{ PrimitiveTokenType::ExpressionClose, *closeBracket });
-
-				iterator = closeBracket; //< update the iterator
-
-				return tokens;
-			}
+				return{ { PrimitiveTokenType::ExpressionOpen, lex } };
 			case LexemeType::ParenthesisClose:
-				throw make_exception(make_error_message_from(iterator, "Syntax Error: Unmatched closing bracket!"));
+				return{ { PrimitiveTokenType::ExpressionClose, lex } };
 			default:
 				break;
 			}
@@ -400,7 +407,33 @@ namespace calc::expr::tkn {
 			std::vector<primitive> vec{};
 			if (lexemes.empty()) return vec; //< if there aren't any lexemes, short circuit
 
-			// reserve enough space for 1:1 token count. Allow reallocations on exceeding this limit tho
+			// validate bracket pairs
+			std::vector<std::pair<const_iterator, const_iterator>> bracket_pairs;
+			for (auto it{ begin }; it != end; ++it) {
+				switch (it->type) {
+				case LexemeType::ParenthesisOpen: {
+					const auto& nextSeparator{ findNext(it, LexemeType::Semicolon) };
+					const auto& [endBracket, depth] { findPairClose(it, nextSeparator, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose) };
+
+					if (endBracket == nextSeparator) {
+						// try to get the actual unmatched bracket
+						const auto& [errorBracket, _] { findPairOpen(it, nextSeparator, LexemeType::ParenthesisOpen, LexemeType::ParenthesisClose, depth) };
+
+						throw make_exception(make_error_msg(findPrev(it, LexemeType::Semicolon), nextSeparator, (errorBracket != nextSeparator ? errorBracket : it), "Syntax Error: Unmatched open bracket!"));
+					}
+					else bracket_pairs.emplace_back(std::make_pair(it, endBracket));
+
+					break;
+				}
+				case LexemeType::ParenthesisClose:
+					if (!std::any_of(bracket_pairs.begin(), bracket_pairs.end(), [&it](auto&& pr) { return pr.second == it; })) {
+						throw make_exception(make_error_msg(findPrev(it, LexemeType::Semicolon), findNext(it, LexemeType::Semicolon), it, "Syntax Error: Unmatched close bracket!"));
+					}
+					break;
+				}
+			}
+
+			// reserve enough space for 1:1 token count (worst case)
 			vec.reserve(lexemes.size());
 
 			// tokenize all of the lexemes into primitives

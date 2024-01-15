@@ -302,6 +302,13 @@ namespace calc::expr::tkn {
 
 		return ss.str();
 	}
+	/**
+	 * @brief				Creates a string that represents the specified range of tokens.
+	 *						The tokens must be in the correct order.
+	 * @tparam INCLUDE_WS -	When true, the returned string includes preceding whitespace before the first token. Defaults to true.
+	 * @param tokens	  -	The tokens to include in the string.
+	 * @returns				A string that includes the specified tokens.
+	 */
 	template<bool INCLUDE_WS = true, class TokenIt>
 	constexpr std::string stringify_tokens(TokenIt const& begin, TokenIt const& end)
 	{

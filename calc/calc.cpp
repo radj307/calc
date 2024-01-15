@@ -1,4 +1,6 @@
-﻿#include "version.h"
+﻿#include <print_at.hpp>
+
+#include "version.h"
 #include "copyright.h"
 
 #include "tokenizer/lexer.hpp"
@@ -87,14 +89,21 @@ struct print_help {
 			<< '\n'
 			<< "  -d, --debug              Shows the arguments, tokens, and expressions received by the application." << '\n'
 			<< "      --functions          Displays a list of all of the functions supported by the current instance." << '\n'
-			<< "  -^, --pow                Interprets the caret '^' symbol as an exponent instead of Bitwise XOR." << '\n'
-			//<< '\n'
-			//<< "  " << '\n'
+			<< "  -^, --pow                Interprets the ^ operator as an Exponent instead of BitwiseXOR." << '\n'
+			<< '\n'
+			<< "  -2, --bin, --base-2      Outputs numbers in binary (base-2)." << '\n'
+			<< "  -8, --oct, --base-8      Outputs numbers in octal (base-8)." << '\n'
+			<< "  -1, --dec, --base-10     Outputs numbers in decimal (base-10)." << '\n'
+			<< "  -x, --hex, --base-16     Outputs numbers in hexadecimal (base-16)." << '\n'
 			;
 	}
 };
 
 inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const&);
+inline std::string num_to_bin(calc::Number const&);
+inline std::string num_to_oct(calc::Number const&);
+inline std::string num_to_dec(calc::Number const&);
+inline std::string num_to_hex(calc::Number const&);
 
 int main(const int argc, char** argv)
 {
@@ -122,10 +131,10 @@ int main(const int argc, char** argv)
 
 		settings.caretIsExponent = args.check_any<opt3::Flag, opt3::Option>('^', "pow");
 
-		// load/build the function map
+		// create the function map
 		FunctionMap fnmap;
 
-		// functions ; show the table of functions & exit
+		// --functions
 		if (args.check_any<opt3::Option>("functions", "function")) {
 			std::cout << fnmap;
 			return 0;
@@ -238,24 +247,40 @@ int main(const int argc, char** argv)
 				}
 			}
 
-			// evaluate the remaining expression
+			// convert expression to RPN
+			std::vector<expr::tkn::primitive> rpnExpr;
 			try {
-				// convert to RPN
-				const auto rpnExpr{ expr::to_rpn(expr, fnmap) };
+				rpnExpr = expr::to_rpn(expr, fnmap);
+			} catch (const std::exception& ex) {
+				std::cerr
+					<< csync.get_error()
+					<< "Failed to convert \""
+					<< csync(color::red) << expr::tkn::stringify_tokens<false>(expr.begin(), expr.end()) << csync()
+					<< "\" to RPN due to exception:\n"
+					<< indent(10)
+					<< ex.what()
+					;
+				continue;
+			}
 
-			#pragma region Expression Debug
-				if (debugExpressions) {
-					// print the expression in RPN
-					std::cout << "Expression " << i << " in RPN:\n";
-					int j{ 0 };
-					for (const auto& tkn : rpnExpr) {
-						const auto indexStr{ std::to_string(j++) };
-						const std::string typeName{ expr::PrimitiveTokenTypeNames[(int)tkn.type] };
-						std::cout << "  " << '[' << indexStr << ']' << indent(3, indexStr.size()) << typeName << indent(20, typeName.size() + 2) << tkn << '\n';
-					}
+		#pragma region Expression Debug
+			if (debugExpressions) {
+				// print the expression in RPN
+				std::cout << "Expression " << i << " in RPN:\n";
+				int j{ 0 };
+				for (const auto& tkn : rpnExpr) {
+					const auto indexStr{ std::to_string(j++) };
+					const std::string typeName{ expr::PrimitiveTokenTypeNames[(int)tkn.type] };
+					std::cout << "  " << '[' << indexStr << ']' << indent(2, indexStr.size()) << typeName << indent(20, typeName.size() + 2) << tkn << '\n';
 				}
-			#pragma endregion Expression Debug
 
+				if (std::any_of(rpnExpr.begin(), rpnExpr.end(), [](auto&& tkn) { return tkn.type == expr::PrimitiveTokenType::Variable; }))
+					std::cout << "Expression " << i << " variable map:\n" << term::print_at(2, std::nullopt, variables);
+			}
+		#pragma endregion Expression Debug
+
+			// evaluate the RPN expression
+			try {
 				// evaluate the result
 				result = expr::evaluate_rpn(rpnExpr, fnmap, variables);
 			} catch (const std::exception& ex) {
@@ -266,11 +291,12 @@ int main(const int argc, char** argv)
 					<< "\" due to exception:\n"
 					<< indent(10)
 					<< ex.what()
-					<< '\n';
-
+					<< '\n'
+					;
 				continue;
 			}
 
+			// handle the result
 			if (setVariable.has_value()) {
 				// set the variable's value
 				const auto varName{ setVariable.value().text };
@@ -286,21 +312,30 @@ int main(const int argc, char** argv)
 				std::string result_str{};
 				// determine which number base to print the result in
 				using expr::PrimitiveTokenType;
-				switch (get_common_number_type(expr)) {
-				default:
-					result_str = str::to_string(result.cast_to<long double>(), 16, false);
-					break;
-				case PrimitiveTokenType::BinaryNumber:
-					result_str = "0b" + str::fromnumber(result.cast_to<long long>(), 2);
-					break;
-				case PrimitiveTokenType::OctalNumber:
-					result_str = str::fromnumber(result.cast_to<long long>(), 8);
-					if (!result_str.starts_with('0'))
-						result_str.insert(result_str.begin(), '0');
-					break;
-				case PrimitiveTokenType::HexNumber:
-					result_str = "0x" + str::fromnumber(result.cast_to<long long>(), 16);
-					break;
+
+				if (args.check_any<opt3::Flag, opt3::Option>('2', "bin", "binary", "base-2"))
+					result_str = num_to_bin(result);
+				else if (args.check_any<opt3::Flag, opt3::Option>('8', "oct", "octal", "base-8"))
+					result_str = num_to_oct(result);
+				else if (args.check_any<opt3::Flag, opt3::Option>('1', "dec", "decimal", "base-10"))
+					result_str = num_to_dec(result);
+				else if (args.check_any<opt3::Flag, opt3::Option>('x', "hex", "hexadecimal", "base-16"))
+					result_str = num_to_hex(result);
+				else {
+					switch (get_common_number_type(expr)) {
+					default:
+						result_str = num_to_dec(result);
+						break;
+					case PrimitiveTokenType::BinaryNumber:
+						result_str = num_to_bin(result);
+						break;
+					case PrimitiveTokenType::OctalNumber:
+						result_str = num_to_oct(result);
+						break;
+					case PrimitiveTokenType::HexNumber:
+						result_str = num_to_hex(result);
+						break;
+					}
 				}
 				// print to the console
 				std::cout << result_str << std::endl;
@@ -314,7 +349,6 @@ int main(const int argc, char** argv)
 	}
 }
 
-inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const& expr)
 /**
  * @brief							Checks if the specified expression includes only numbers
  *									 in a specific base, and returns the token type.
@@ -322,6 +356,7 @@ inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::e
  * @returns							The common numeric token type when expr contains numbers of
  *									 one type; otherwise, PrimitiveTokenType::Unknown
  */
+inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const& expr)
 {
 	using namespace calc::expr;
 	if (expr.empty()) return PrimitiveTokenType::Unknown;
@@ -339,4 +374,34 @@ inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::e
 	return std::all_of(numbers.begin() + 1, numbers.end(), [&numbers](auto&& v) { return v.type == numbers[0].type; })
 		? numbers[0].type
 		: PrimitiveTokenType::Unknown;
+}
+
+/// @brief	Converts the specified number to a binary string.
+inline std::string num_to_bin(calc::Number const& num)
+{
+	if (!num.has_integral_value())
+		throw make_exception("Cannot convert floating-point value \"", str::to_string(num.cast_to<long double>(), 32, true), "\" to binary!");
+	return "0b" + str::fromnumber(num.cast_to<long long>(), 2);
+}
+/// @brief	Converts the specified number to an octal string.
+inline std::string num_to_oct(calc::Number const& num)
+{
+	if (!num.has_integral_value())
+		throw make_exception("Cannot convert floating-point value \"", str::to_string(num.cast_to<long double>(), 32, true), "\" to octal!");
+	std::string s{ str::fromnumber(num.cast_to<long long>(), 8) };
+	return s.starts_with('0') ? s : "0" + s;
+}
+/// @brief	Converts the specified number to a decimal string.
+inline std::string num_to_dec(calc::Number const& num)
+{
+	if (num.has_integral_value())
+		return std::to_string(num.cast_to<long long>());
+	else return str::to_string(num.cast_to<long double>(), 16, false);
+}
+/// @brief	Converts the specified number to a hexadecimal string.
+inline std::string num_to_hex(calc::Number const& num)
+{
+	if (!num.has_integral_value())
+		throw make_exception("Cannot convert floating-point value \"", str::to_string(num.cast_to<long double>(), 32, true), "\" to hexadecimal!");
+	return "0x" + str::fromnumber(num.cast_to<long long>(), 16);
 }

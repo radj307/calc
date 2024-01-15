@@ -51,13 +51,6 @@ namespace calc::expr {
 		case PrimitiveTokenType::RealNumber:
 			// Decimal Floating-Point
 			return str::tonumber<Number::real_t>(stripWhitespace(primitive.text));
-		case PrimitiveTokenType::Boolean:
-			// Boolean Literal
-			if (primitive.text == "true")
-				return true;
-			else if (primitive.text == "false")
-				return false;
-			else throw make_exception('"', primitive.text, "\" is not a valid boolean literal!");
 		default:
 			// Unsupported
 			throw make_exception("primitiveToNumber() does not support converting type \"", PrimitiveTokenTypeNames[(int)primitive.type], "\" to Number!");
