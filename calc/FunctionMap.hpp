@@ -1,5 +1,5 @@
 #pragma once
-#include "operators.hpp"
+#include "func.hpp"
 
 // libcalc
 #include <intmath.hpp>		//< for integral math functions
@@ -105,7 +105,6 @@ namespace calc {
 				else return fabsl(n.cast_to<long double>());
 			} }), "Get Absolute Value")),
 			std::make_pair("fma", std::make_tuple(new func(fmal), "Multiply-add")),
-
 		};
 
 	public:

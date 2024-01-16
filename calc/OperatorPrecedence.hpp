@@ -1,6 +1,5 @@
 #pragma once
 #include "tokenizer/types/PrimitiveTokenType.h"
-#include "operators.hpp"
 
 #include <map>
 
