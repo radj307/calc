@@ -1,6 +1,4 @@
-﻿#include <print_at.hpp>
-
-#include "version.h"
+﻿#include "version.h"
 #include "copyright.h"
 
 #include "tokenizer/lexer.hpp"
@@ -19,7 +17,7 @@
 #include <opt3.hpp>					//< for ArgManager
 #include <envpath.hpp>				//< for PATH
 #include <hasPendingDataSTDIN.h>	//< for checking piped input
-#include <print_tree.hpp>			//< for print_tree
+#include <print_at.hpp>				//< for print_at
 
 #include "settings.h" //< for calc global settings
 
@@ -36,8 +34,8 @@ struct print_help {
 			// check if the optional capture is recognized
 			if (h._helpArg.value() == "syntax") {
 				/*
-				* SYNTAX
-				*/
+				 * SYNTAX
+				 */
 				return os
 					<< "SYNTAX" << '\n'
 					<< '\n'
@@ -58,7 +56,6 @@ struct print_help {
 					<< "  - Functions can be any number of connected characters followed by parentheses containing the input." << '\n'
 					<< "  - There cannot be a space between the function name and the parentheses." << '\n'
 					<< "	 Valid: sqrt(25)		Not Valid: sqrt (25)" << '\n'
-					<< '\n'
 					;
 			}
 			else {
@@ -337,6 +334,7 @@ int main(const int argc, char** argv)
 						break;
 					}
 				}
+
 				// print to the console
 				std::cout << result_str << std::endl;
 			}
