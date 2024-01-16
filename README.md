@@ -1,2 +1,10 @@
 # calc
-Commandline programmer calculator
+
+Commandline expression calculator for Windows & Linux.
+
+## Features
+
+- Variables
+- Functions
+- Bitwise Operators: [ `~` `|` `&` `^` `<<` `>>` ]
+- Logical Operators: [ `==` `!=` `<` `>` `<=` `>=` ]
