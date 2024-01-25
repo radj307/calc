@@ -60,6 +60,8 @@ X(LogicalAND)					\
 	};
 #undef X
 
+#undef PRIMITIVE_TOKEN_TYPE
+
 	/// @brief	Determines whether the specified PrimitiveTokenType represents a number.
 	constexpr bool is_number(PrimitiveTokenType const tokenType) noexcept
 	{

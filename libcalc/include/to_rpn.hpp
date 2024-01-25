@@ -75,8 +75,8 @@ namespace calc::expr {
 					auto count{ 0u };
 
 					// look ahead until the closing function bracket
-					unsigned depth{ 0u };
-					for (auto fwdit{ it }; fwdit != it_end; ++fwdit) {
+					auto depth{ 0u };
+					for (auto fwdit{ it + 1 }; fwdit != it_end; ++fwdit) {
 						switch (fwdit->type) {
 						case PrimitiveTokenType::FunctionName:
 							// skip ahead to the open bracket
@@ -91,15 +91,20 @@ namespace calc::expr {
 								goto BREAK_LOOKAHEAD;
 							break;
 						default:
-							if (depth == 1 && evaluates_to_number(fwdit->type))
-								++count;
+							// if this token evaluates to a number and isn't part of an expression
+							if (depth == 1 && evaluates_to_number(fwdit->type)) {
+								if (const auto next{ fwdit + 1 };
+									next == it_end || !OperatorPrecedence::IsOperator(next->type)) {
+									++count; //< increment the parameter count
+								}
+							}
 							break;
 						}
 					}
 				BREAK_LOOKAHEAD:
 
 					if (count != paramsCount) // throw on parameter count mismatch:
-						throw make_exception("Function \"", tkn.text, "\" expects ", paramsCount, " parameters but ", count, ' ', (count == 1 ? "was" : "were"), " provided!");
+						throw make_exception("Function \"", tkn.text, "\" expects ", paramsCount, " parameter", (paramsCount != 1 ? "s" : ""), " but ", count, ' ', (count == 1 ? "was" : "were"), " provided!");
 
 					[[fallthrough]];
 				}

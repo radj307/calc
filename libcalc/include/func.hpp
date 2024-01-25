@@ -32,7 +32,7 @@ namespace calc {
 		constexpr operator base_func* () noexcept { return this; }
 		constexpr operator base_func const* () const noexcept { return this; }
 
-		constexpr Number operator()(std::vector<Number> const& args)
+		WINCONSTEXPR Number operator()(std::vector<Number> const& args)
 		{
 			return invoke(args);
 		}

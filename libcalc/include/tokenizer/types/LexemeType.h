@@ -46,6 +46,8 @@ X(_EOF)						\
 	};
 #undef X
 
+#undef LEXEME_TYPE
+
 	/// @brief	Determines whether the specified LexemeType is a number or not.
 	constexpr bool is_number(LexemeType const& lexType)
 	{

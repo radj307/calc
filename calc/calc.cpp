@@ -1,15 +1,14 @@
 ﻿#include "version.h"
 #include "copyright.h"
 
-#include "tokenizer/lexer.hpp"
-#include "tokenizer/primitive_tokenizer.hpp"
-#include "to_rpn.hpp"
-#include "evaluate_rpn.hpp"
-#include "helpers/vec_helpers.h"	//< for split_vec
+// calc
+#include "tokenizer_impl/custom_primitive_tokenizer.hpp"
 
-#include "FunctionMap.hpp" //< move this to libcalc
 // libcalc
-#include <Number.hpp>
+#include <tokenizer/lexer.hpp>
+#include <to_rpn.hpp>
+#include <evaluate_rpn.hpp>
+#include <helpers/vec_helpers.h>	//< for split_vec
 
 // 307lib
 #include <TermAPI.hpp>				//< for console helpers
@@ -19,73 +18,52 @@
 #include <hasPendingDataSTDIN.h>	//< for checking piped input
 #include <print_at.hpp>				//< for print_at
 
-#include "settings.h" //< for calc global settings
+#include "global.h" //< for calc global settings
+
 
 struct print_help {
-	const std::string _executableName;
-	const std::optional<std::string> _helpArg;
+	const std::string executableName;
+	const std::optional<std::string> helpTopic;
 
-	print_help(const std::string& executableName, const std::optional<std::string>& helpArg) : _executableName{ executableName }, _helpArg{ helpArg } {}
+	static const std::vector<std::pair<std::vector<std::string>, std::function<void(std::ostream&, print_help const&)>>> topics;
+
+	print_help(std::string const& executableName, std::optional<std::string> const& helpTopic) : executableName{ executableName }, helpTopic{ helpTopic } {}
 
 	friend std::ostream& operator<<(std::ostream& os, const print_help& h)
 	{
 		// check if the user has provided an optional capture
-		if (h._helpArg.has_value()) {
-			// check if the optional capture is recognized
-			if (h._helpArg.value() == "syntax") {
-				/*
-				 * SYNTAX
-				 */
-				return os
-					<< "SYNTAX" << '\n'
-					<< '\n'
-					<< "NUMBERS:\n"
-					<< "  - Binary numbers must start with \'0b\'.   eg. 0b11001" << '\n'
-					<< "  - Hexadecimal numbers must start with \'0x\'.   eg. 0xAB64" << '\n'
-					<< "  - Octal numbers start with \'0\'.    eg. 056" << '\n'
-					<< "  - Numbers without these prefixes are assumed to be Decimal." << '\n'
-					<< "  - Numbers cannot have spaces. If you would like to space out large numbers you can use underscores" << '\n'
-					<< "     to connect digits.    eg. 132_678 will be treated as 132678" << '\n'
-					<< '\n'
-					<< "VARIABLES:\n"
-					<< "  - Variables are a single character only." << '\n'
-					<< "  - Can be any lower or uppercase character, but are case sensitive." << '\n'
-					<< "	eg. \'A\' is a different variable than \'a\'" << '\n'
-					<< '\n'
-					<< "FUNCTIONS:\n"
-					<< "  - Functions can be any number of connected characters followed by parentheses containing the input." << '\n'
-					<< "  - There cannot be a space between the function name and the parentheses." << '\n'
-					<< "	 Valid: sqrt(25)		Not Valid: sqrt (25)" << '\n'
-					;
+		if (h.helpTopic.has_value()) {
+			const auto topic{ str::tolower(h.helpTopic.value()) };
+
+			for (const auto& [names, printer] : print_help::topics) {
+				if (std::any_of(names.begin(), names.end(), [&topic](auto&& name) { return topic == name; })) {
+					printer(os, h);
+					return os;
+				}
 			}
-			else {
-				return os
-					<< "Help Subject " << h._helpArg.value() << " does not exist." << '\n'
-					<< "USAGE: \n"
-					<< "  -h, --help [SUBJECT]" << '\n'
-					<< '\n'
-					<< "SUBJECTS:" << '\n'
-					<< "  syntax			Shows details about the syntax for usage of this program." << '\n'
-					;
-			}
+
+			throw make_exception('\"', topic, "\" is not a recognized help topic!\n",
+								 indent(10), "Use \"", h.executableName, " --help topics\" to see a list of topics.");
 		}
 		return os
 			<< "calc " << calc_VERSION_EXTENDED << ' ' << calc_COPYRIGHT << '\n'
 			<< "  Commandline calculator.\n"
 			<< '\n'
 			<< "USAGE:\n"
-			<< "  " << h._executableName << " [OPTIONS] [--] \"<EXPRESSION>\"" << '\n'
+			<< "  " << h.executableName << " [OPTIONS] [--] \"<EXPRESSION>\"" << '\n'
 			<< '\n'
 			<< "  NOTE: Wrap expressions that use brackets in quotes, or the brackets will be removed by the shell." << '\n'
 			<< "  NOTE: Negative numbers are interpreted as flags because they start with a dash. To prevent this," << '\n'
 			<< "         include an argument terminator \"--\" prior to the expression." << '\n'
 			<< '\n'
 			<< "OPTIONS:\n"
-			<< "  -h, --help [SUBJECT]     Shows this help display, or details about the specified subject, then exits." << '\n'
+			<< "  -h, --help [TOPIC]       Shows this help display, or details about the specified topic, then exits." << '\n'
+			<< "                           Use \"--help topics\" to see a list of available topics." << '\n'
 			<< "  -v, --version            Prints the current version number, then exits." << '\n'
 			<< '\n'
 			<< "  -d, --debug              Shows the arguments, tokens, and expressions received by the application." << '\n'
 			<< "      --functions          Displays a list of all of the functions supported by the current instance." << '\n'
+			<< "  -e, --echo               Outputs the expression that resulted in the output value." << '\n'
 			<< "  -^, --pow                Interprets the ^ operator as an Exponent instead of BitwiseXOR." << '\n'
 			<< '\n'
 			<< "  -2, --bin, --base-2      Outputs numbers in binary (base-2)." << '\n'
@@ -95,6 +73,81 @@ struct print_help {
 			;
 	}
 };
+inline const std::vector<std::pair<std::vector<std::string>, std::function<void(std::ostream&, print_help const&)>>> print_help::topics{
+	std::make_pair(std::vector<std::string>{ "topics", "topic", "help" }, [](std::ostream& os, print_help const& h) { {
+			os
+				<< "USAGE:\n"
+				<< "  " << h.executableName << " --help <TOPIC>\n"
+				<< '\n'
+				<< "  View extended documentation on a specific topic." << '\n'
+				<< '\n'
+				<< "TOPICS:\n";
+			for (const auto& [names, _] : print_help::topics) {
+				os << "  - \"" << *names.begin() /*<< str::stringify_join(names.begin(), names.end(), "\", \"")*/ << "\"\n";
+			}
+		} }),
+	std::make_pair(std::vector<std::string>{ "syntax", "expr", "expression", "expressions" }, [](std::ostream& os, print_help const& h) { {
+			os // syntax help doc:
+				<< "SYNTAX\n"
+				<< '\n'
+				<< "TOKENS:\n"
+				<< "  Expressions are tokenized to produce a sequence of tokens." << '\n'
+				<< "  Whitespace is not considered to be a token." << '\n'
+				<< '\n'
+				<< "NUMBERS:\n"
+				<< "  Numbers can be represented in binary, octal, decimal, or hexadecimal." << '\n'
+				<< "  - Binary numbers start with \"0b\":       \"0b111101101\"" << '\n'
+				<< "  - Octal numbers start with '0':         \"0755\"" << '\n' //< these are aligned, for some reason
+				<< "  - Decimal numbers start with [1-9]:     \"493\"" << '\n'
+				<< "  - Hexadecimal numbers start with \"0x\":  \"0x1ED\"" << '\n'
+				<< "  Decimal numbers may be integers or floating-points." << '\n'
+				<< "  Binary and hexadecimal numbers may also include underscores '_' to make" << '\n'
+				<< "   them more readable." << '\n'
+				<< '\n'
+				<< "VARIABLES:\n"
+				<< "  Variables consist of any number of consecutive alphabetic or underscore characters." << '\n'
+				<< "  Variables may be set in sub-expressions, but they must be defined prior to using them:" << '\n'
+				<< "    \"a = pow(2, 10); b: 1; a + b\"" << '\n'
+				<< "  Variables can also be unset if there aren't any tokens after the setter:" << '\n'
+				<< "    \"a = \"" << '\n'
+				<< '\n'
+				<< "OPERATORS:\n"
+				<< "  Operators usually consist of 1 or 2 symbols, and may have different meanings" << '\n'
+				<< "    depending on the types of the surrounding tokens." << '\n'
+				<< "  Bitwise operators require integer operands, and will throw if you use them" << '\n'
+				<< "   with a floating-point. You can use the \"trunc\" function to convert floats to int." << '\n'
+				<< '\n'
+				<< "FUNCTIONS:\n"
+				<< "  Functions are sequences of alphabetic or underscore characters, followed by parentheses ()." << '\n'
+				<< "  A list of available functions can be viewed with \"" << h.executableName << " --functions\"" << '\n'
+				<< "  Functions must be called with the correct number of parameters, or an exception is thrown." << '\n'
+				;
+		} }),
+			std::make_pair(std::vector<std::string>{ "debug", "dbg" }, [](std::ostream& os, print_help const& h) { {
+					os
+						<< "USAGE:\n"
+						<< "  " << h.executableName << " -d -- \"<EXPRESSION>\"" << '\n'
+						<< '\n'
+						<< "  The debug option helps with debugging expressions in a number of ways. It shows the following information:" << '\n'
+						<< "  - Arguments received by the application." << '\n'
+						<< "  - The entire tokenized expression." << '\n'
+						<< "  - Each sub-expression after being split by occurrences of the " << calc::expr::PrimitiveTokenTypeNames[(int)calc::expr::PrimitiveTokenType::Separator] << " token." << '\n'
+						<< "  - Each sub-expression after being converted to RPN (reverse polish notation)." << '\n'
+						<< "  - The values of variables whenever they're used in an expression." << '\n'
+						<< '\n'
+						<< "  Common problems & resolutions:" << '\n'
+						<< "  - Expression segments starting with '-' aren't included in the tokenized expression." << '\n'
+						<< "    This happens because arguments that start with '-' are parsed as flags instead of parameters." << '\n'
+						<< "    It can be resolved by including an argument terminator \"--\" prior to the expression. For example:" << '\n'
+						<< "     " << h.executableName << " -- -1 + 1" << '\n'
+						<< "  - Certain characters aren't received by the application, such as brackets." << '\n'
+						<< "    This happens with some shells because they have special handling for specific characters," << '\n'
+						<< "     which are stripped before being passed to the application." << '\n'
+						<< "    It can be resolved by enclosing the expression in double-quotes. For example:" << '\n'
+						<< "     " << h.executableName << " \"pow(2, 10)\"" << '\n'
+						;
+				} }),
+};
 
 inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::expr::tkn::primitive> const&);
 inline std::string num_to_bin(calc::Number const&);
@@ -102,9 +155,23 @@ inline std::string num_to_oct(calc::Number const&);
 inline std::string num_to_dec(calc::Number const&);
 inline std::string num_to_hex(calc::Number const&);
 
+#include <calc_exception.hpp>
+
 int main(const int argc, char** argv)
 {
 	using namespace calc;
+
+	namespace mp = boost::multiprecision;
+	using cpp_float = mp::cpp_dec_float_100;
+	using cpp_int = mp::cpp_int;
+
+	cpp_int i{ 2 };
+	cpp_float f{ 0.5 };
+
+	//mp::hypot(f, f);
+	//mp::cbrt(i);
+	mp::cbrt(f);
+
 
 	try {
 		opt3::ArgManager args{ argc, argv,
@@ -125,8 +192,6 @@ int main(const int argc, char** argv)
 			std::cout << calc_VERSION_EXTENDED << std::endl;
 			return 0;
 		}
-
-		settings.caretIsExponent = args.check_any<opt3::Flag, opt3::Option>('^', "pow");
 
 		// create the function map
 		FunctionMap fnmap;
@@ -149,16 +214,20 @@ int main(const int argc, char** argv)
 				exprbuf << param << ' ';
 
 			// tokenize the expression
-			tokens = expr::tkn::primitive_tokenizer{
+			tokens = expr::tkn::custom_primitive_tokenizer{
+				// lexemes:
 				expr::tkn::lexer{ std::move(exprbuf) }.get_lexemes(),
-				&fnmap
+				// functionMap:
+				&fnmap,
+				// caretIsExponent:
+				args.check_any<opt3::Flag, opt3::Option>('^', "pow")
 			}.tokenize();
 		}
 
-		const bool debugExpressions{ args.check_any<opt3::Flag, opt3::Option>('d', "debug") };
+		const bool debug{ args.check_any<opt3::Flag, opt3::Option>('d', "dbg", "debug") };
 
 	#pragma region Expression Debug
-		if (debugExpressions) {
+		if (debug) {
 			std::cout << "Args:\n";
 			int i{ 0 };
 			for (const auto& arg : args) {
@@ -187,11 +256,11 @@ int main(const int argc, char** argv)
 		std::vector<std::vector<expr::tkn::primitive>> expressions{ split_vec(tokens, [](auto&& tkn) { return tkn.type == expr::PrimitiveTokenType::Separator; }) };
 
 		// exit with error if there is nothing to evaluate
-		if (expressions.empty() && !debugExpressions)
+		if (expressions.empty() && !debug)
 			throw make_exception("Nothing to do!");
 
 	#pragma region Expression Debug
-		if (debugExpressions) {
+		if (debug) {
 			// print out all of the tokens in each expression as written
 			for (size_t i{ 0 }, i_max{ expressions.size() }; i < i_max; ++i) {
 				for (const auto& rpnExpr : expressions) {
@@ -209,6 +278,8 @@ int main(const int argc, char** argv)
 
 		// create the table of variables
 		VarMap variables;
+
+		const auto echoExpr{ args.check_any<opt3::Flag, opt3::Option>('e', "echo") };
 
 		// enumerate each expression, convert to RPN, and evaluate
 		calc::Number result;
@@ -234,7 +305,7 @@ int main(const int argc, char** argv)
 					variables.erase(varName);
 
 				#pragma region Expression Debug
-					if (debugExpressions) {
+					if (debug) {
 						// print that the variable was set to undefined
 						std::cout << "Expression " << i << " set \"" << varName << "\" to undefined\n";
 					}
@@ -261,7 +332,7 @@ int main(const int argc, char** argv)
 			}
 
 		#pragma region Expression Debug
-			if (debugExpressions) {
+			if (debug) {
 				// print the expression in RPN
 				std::cout << "Expression " << i << " in RPN:\n";
 				int j{ 0 };
@@ -300,7 +371,7 @@ int main(const int argc, char** argv)
 				variables[varName] = result;
 
 			#pragma region Expression Debug
-				if (debugExpressions) {
+				if (debug) {
 					std::cout << "Expression " << i << " set variable \"" << varName << "\" to " << result << '\n';
 				}
 			#pragma endregion Expression Debug
@@ -333,6 +404,10 @@ int main(const int argc, char** argv)
 						result_str = num_to_hex(result);
 						break;
 					}
+				}
+
+				if (echoExpr) {
+					std::cout << expr::tkn::stringify_tokens(expr.begin(), expr.end()) << " = ";
 				}
 
 				// print to the console
@@ -374,32 +449,51 @@ inline calc::expr::PrimitiveTokenType get_common_number_type(std::vector<calc::e
 		: PrimitiveTokenType::Unknown;
 }
 
+/// @brief	Strips trailing zeroes and decimal points.
+inline std::string truncate_zeroes(std::string const& num)
+{
+	if (const auto decPos{ num.find('.') }; decPos != std::string::npos) {
+		if (const auto lastNonZero{ num.find_last_of("123456789") };
+			lastNonZero == std::string::npos) {
+			return num;
+		}
+		else if (lastNonZero <= decPos) {
+			// all zeroes after the decimal
+			return num.substr(0, decPos);
+		}
+		else {
+			return num.substr(0, lastNonZero + 1);
+		}
+	}
+	return num;
+}
+
 /// @brief	Converts the specified number to a binary string.
 inline std::string num_to_bin(calc::Number const& num)
 {
 	if (!num.has_integral_value())
-		throw make_exception("Cannot convert floating-point value \"", str::to_string(num.cast_to<long double>(), 32, true), "\" to binary!");
-	return "0b" + str::fromnumber(num.cast_to<long long>(), 2);
+		throw make_exception("Cannot convert floating-point value \"", num, "\" to binary!");
+	return "0b" + to_base(num, 2);
 }
 /// @brief	Converts the specified number to an octal string.
 inline std::string num_to_oct(calc::Number const& num)
 {
 	if (!num.has_integral_value())
-		throw make_exception("Cannot convert floating-point value \"", str::to_string(num.cast_to<long double>(), 32, true), "\" to octal!");
-	std::string s{ str::fromnumber(num.cast_to<long long>(), 8) };
+		throw make_exception("Cannot convert floating-point value \"", num, "\" to octal!");
+	const auto s{ to_base(num, 8) };
 	return s.starts_with('0') ? s : "0" + s;
 }
 /// @brief	Converts the specified number to a decimal string.
 inline std::string num_to_dec(calc::Number const& num)
 {
 	if (num.has_integral_value())
-		return std::to_string(num.cast_to<long long>());
-	else return str::to_string(num.cast_to<long double>(), 16, false);
+		return to_base(num, 10);
+	else return truncate_zeroes(str::stringify(std::fixed, std::setprecision(128), num.cast_to<boost::multiprecision::cpp_dec_float_100>()));
 }
 /// @brief	Converts the specified number to a hexadecimal string.
 inline std::string num_to_hex(calc::Number const& num)
 {
 	if (!num.has_integral_value())
-		throw make_exception("Cannot convert floating-point value \"", str::to_string(num.cast_to<long double>(), 32, true), "\" to hexadecimal!");
-	return "0x" + str::fromnumber(num.cast_to<long long>(), 16);
+		throw make_exception("Cannot convert floating-point value \"", num, "\" to hexadecimal!");
+	return "0x" + to_base(num, 16);
 }

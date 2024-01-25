@@ -8,6 +8,7 @@
 
 // libcalc
 #include <Number.hpp>	//< for calc::Number
+#include <baseconv.h>	//< for calc::from_base
 
 // 307lib
 #include <strcore.hpp>	//< for str::tonumber
@@ -34,23 +35,21 @@ namespace calc::expr {
 		switch (primitive.type) {
 		case PrimitiveTokenType::BinaryNumber:
 			// Binary Integral
-			return str::tonumber<Number::int_t>(primitive.text.starts_with("0b")
-												? primitive.text.substr(2)
-												: primitive.text, 2);
+			return from_base(text.starts_with("0b")
+							 ? text.substr(2)
+							 : text, 2);
 		case PrimitiveTokenType::OctalNumber:
 			// Octal Integral
-			return str::tonumber<Number::int_t>(primitive.text, 8);
+			return from_base(text, 8);
 		case PrimitiveTokenType::HexNumber:
 			// Hexadecimal Integral
-			return str::tonumber<Number::int_t>(primitive.text.starts_with("0x")
-												? primitive.text.substr(2)
-												: primitive.text, 16);
+			return from_base(text.starts_with("0x")
+							 ? text.substr(2)
+							 : text, 16);
 		case PrimitiveTokenType::IntNumber:
-			// Decimal Integral
-			return str::tonumber<Number::int_t>(stripWhitespace(primitive.text), 10);
 		case PrimitiveTokenType::RealNumber:
-			// Decimal Floating-Point
-			return str::tonumber<Number::real_t>(stripWhitespace(primitive.text));
+			// Decimal Integral/Floating-Point
+			return from_base(text, 10);
 		default:
 			// Unsupported
 			throw make_exception("primitiveToNumber() does not support converting type \"", PrimitiveTokenTypeNames[(int)primitive.type], "\" to Number!");
@@ -170,12 +169,14 @@ namespace calc::expr {
 				case PrimitiveTokenType::Divide: {
 					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator / (Divide)");
 					const auto right{ pop_off(operands) };
+					if (right.is_zero()) throw make_exception("Cannot divide by zero!");
 					result = pop_off(operands) / right;
 					break;
 				}
 				case PrimitiveTokenType::Modulo: {
 					if (operands.size() < 2) throw make_exception("Not enough operands for binary operator % (Modulo)");
 					const auto right{ pop_off(operands) };
+					if (right.is_zero()) throw make_exception("Cannot divide by zero!");
 					result = pop_off(operands) % right;
 					break;
 				}
