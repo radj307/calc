@@ -2,7 +2,7 @@
 
 Commandline expression calculator for Windows & Linux.
 
-![image](https://github.com/radj307/calc/assets/1927798/725903a8-101f-46fa-8ea2-c5f0e6c54236)
+![image](https://github.com/radj307/calc/assets/1927798/72166e94-9aa9-4fb3-840f-b821b7b64a55)
 
 ## Features
 
