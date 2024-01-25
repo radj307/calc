@@ -8,9 +8,6 @@
 #include <var.hpp>			//< for concepts
 #include <print_table.hpp>	//< for term::print_table
 
-// boost
-#include <boost/math_fwd.hpp>
-
 // stl
 #include <cmath>			//< for math functions
 #include <cstdint>			//< for std::uint8_t (for clarity)
@@ -40,11 +37,11 @@ namespace calc {
 
 			/// Exponential and Logarithmic Functions
 			std::make_pair("exp", std::make_tuple(new func(exp), "Compute exponential function")),
-			//std::make_pair("frexp", std::make_tuple(new func( frexpl ), "Get significand and exponent")), //< uses pointers, must be adapted
+			//std::make_pair("frexp", std::make_tuple(new func( frexpl ), "Get significand and exponent")), //< uses pointers
 			std::make_pair("ldexp", std::make_tuple(new func(ldexp), "Generate value from significand and exponent")),
 			std::make_pair("log", std::make_tuple(new func(log), "Compute natural logarithm")),
 			std::make_pair("log10", std::make_tuple(new func(log10), "Compute common logarithm")),
-			//std::make_pair("modf", std::make_tuple(new func( modfl ), "Break into fractional and integral parts")), //< uses pointers, must be adapted
+			//std::make_pair("modf", std::make_tuple(new func( modfl ), "Break into fractional and integral parts")), //< uses pointers
 			std::make_pair("exp2", std::make_tuple(new func(exp2), "Compute binary exponential function")),
 			std::make_pair("expm1", std::make_tuple(new func(expm1), "Compute exponential minus one")),
 			std::make_pair("ilogb", std::make_tuple(new func(ilogb), "Integer binary logarithm")),
@@ -92,6 +89,7 @@ namespace calc {
 	public:
 		~FunctionMap()
 		{
+			// delete all of the raw function pointers
 			for (auto& pr : map) {
 				if (auto* ptr = std::get<0>(pr.second)) {
 					delete ptr;
@@ -136,9 +134,9 @@ namespace calc {
 		{
 			return os << term::print_table(m.map.begin(), m.map.end(), {
 				{ "Function", [](auto&& pr) { return pr.first; } },
-										   { "Param#", [](auto&& pr) { return std::to_string(std::get<0>(pr.second)->getParamsCount()); }, term::HorizontalAlignment::Center },
-										   { "Description", [](auto&& pr) { return std::get<1>(pr.second);  } },
-										   });
+				{ "Param#", [](auto&& pr) { return std::to_string(std::get<0>(pr.second)->getParamsCount()); }, term::HorizontalAlignment::Center },
+				{ "Description", [](auto&& pr) { return std::get<1>(pr.second);  } },
+			});
 		}
 	};
 }

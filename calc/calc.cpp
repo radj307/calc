@@ -123,7 +123,7 @@ inline const std::vector<std::pair<std::vector<std::string>, std::function<void(
 				<< "  Functions must be called with the correct number of parameters, or an exception is thrown." << '\n'
 				;
 		} }),
-			std::make_pair(std::vector<std::string>{ "debug", "dbg" }, [](std::ostream& os, print_help const& h) { {
+	std::make_pair(std::vector<std::string>{ "debug", "dbg" }, [](std::ostream& os, print_help const& h) { {
 					os
 						<< "USAGE:\n"
 						<< "  " << h.executableName << " -d -- \"<EXPRESSION>\"" << '\n'
@@ -155,23 +155,9 @@ inline std::string num_to_oct(calc::Number const&);
 inline std::string num_to_dec(calc::Number const&);
 inline std::string num_to_hex(calc::Number const&);
 
-#include <calc_exception.hpp>
-
 int main(const int argc, char** argv)
 {
 	using namespace calc;
-
-	namespace mp = boost::multiprecision;
-	using cpp_float = mp::cpp_dec_float_100;
-	using cpp_int = mp::cpp_int;
-
-	cpp_int i{ 2 };
-	cpp_float f{ 0.5 };
-
-	//mp::hypot(f, f);
-	//mp::cbrt(i);
-	mp::cbrt(f);
-
 
 	try {
 		opt3::ArgManager args{ argc, argv,
