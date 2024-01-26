@@ -11,9 +11,13 @@
 
 namespace calc {
 #define SUGGESTED_FIX			\
-X(1, EncloseExprInQuotes, "Enclose the expression with double-quotes (\").") \
-X(2, IncludeArgTerminator, "Include an argument terminator (--) prior to the expression.") \
+X(0, None, "") \
+X(1, SmallerNumbers, "Try using smaller numbers in your expression.")	\
+X(2, UnsafeCast, "Disable unsafe cast exceptions by specifying the '-E|--castex' option.")	\
 X(4, RoundFloat, "Convert the floating-point to an integer with round(), trunc(), ceil(), or floor().")	\
+X(8, EncloseExprInQuotes, "Enclose the expression with double-quotes (\").") \
+X(16, IncludeArgTerminator, "Include an argument terminator (--) prior to the expression.") \
+
 
 	// define the enum
 #define X(value, name, desc) name = value,
@@ -44,6 +48,9 @@ X(4, RoundFloat, "Convert the floating-point to an integer with round(), trunc()
 	}
 	inline std::string make_suggested_fix_message(SuggestedFix const suggestedFixes)
 	{
+		if (suggestedFixes == SuggestedFix::None)
+			return{};
+
 		std::stringstream ss;
 		ss << indent(10) << "Suggested Fixes:\n";
 

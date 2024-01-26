@@ -1,4 +1,6 @@
 #pragma once
+#include "calc_exception.hpp"
+
 // 307lib
 #include <var.hpp>
 #include <make_exception.hpp>
@@ -10,14 +12,34 @@
 // STL
 #include <variant>		//< for std::variant
 #include <limits>		//< for std::numeric_limits
+#include <typeinfo>		//< for typeid
 
 namespace calc {
+#pragma region precision_exception
+
+	static bool NUMBER_THROW_ON_UNSAFE_CAST{ true };
+
+	struct precision_exception : calc_exception {
+		precision_exception(std::string const& message) :
+			calc_exception(message, SuggestedFix::UnsafeCast)
+		{}
+		precision_exception(std::string const& message, SuggestedFix const extraSuggestedFixes) :
+			calc_exception(message, SuggestedFix::UnsafeCast | extraSuggestedFixes)
+		{}
+	};
+
+#pragma endregion precision_exception
+
+#pragma region Number
+
 	struct Number {
 		using int_t = boost::multiprecision::cpp_int;
 		using real_t = boost::multiprecision::cpp_dec_float_100;
 		using value_t = std::variant<int_t, real_t>;
 
 		value_t value;
+
+	#pragma region Constructors
 
 		WINCONSTEXPR Number() = default;
 	#pragma region Integral Ctors
@@ -41,6 +63,10 @@ namespace calc {
 		WINCONSTEXPR Number(real_t const& value) : value{ (boost::multiprecision::trunc(value) == value) ? value_t{ static_cast<int_t>(value) } : value_t{ value } } {}
 		WINCONSTEXPR Number(bool const value) : value{ static_cast<int_t>(value) } {}
 
+	#pragma endregion Constructors
+
+	#pragma region Conversion Operators
+
 	#pragma region Integral Conversion Operators
 		constexpr operator int8_t() const noexcept { return cast_to<int8_t>(); }
 		constexpr operator int16_t() const noexcept { return cast_to<int16_t>(); }
@@ -60,6 +86,9 @@ namespace calc {
 	#pragma endregion Floating-Point Conversion Operators
 		constexpr operator bool() const noexcept { return !is_zero(); }
 
+	#pragma endregion Conversion Operators
+
+	#pragma region Methods
 
 		template<var::any_same<int_t, real_t> T>
 		constexpr bool is_type() const noexcept { return std::holds_alternative<T>(value); }
@@ -69,8 +98,14 @@ namespace calc {
 		WINCONSTEXPR bool has_integral_value() const noexcept
 		{
 			if (is_integer()) return true;
-			const auto v{ std::get<real_t>(value) };
-			return boost::multiprecision::trunc(v) == v;
+			const auto v{ cast_to_<real_t>() };
+			if (!BOOST_MP_ISFINITE(v)) return false;
+			try {
+				// this can throw when exceptionally large numbers are present
+				return boost::multiprecision::trunc(v) == v;
+			} catch (...) {
+				return false;
+			}
 		}
 		/// @brief	Determines if the numeric value is equal to zero.
 		constexpr bool is_zero() const noexcept
@@ -83,19 +118,112 @@ namespace calc {
 			return std::visit([](auto&& n) { return n > 0; }, value);
 		}
 
+	#pragma region can_fit_value
+		template<std::integral T>
+		constexpr bool can_fit_value() const noexcept
+		{
+			if (!has_integral_value()) return false;
+			const int_t v{ cast_to_<int_t>() };
+			return v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max();
+		}
+		template<std::floating_point T>
+		constexpr bool can_fit_value() const noexcept
+		{
+			const real_t v{ cast_to_<real_t>() };
+			return v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max();
+		}
+		template<std::same_as<typename Number::int_t> T>
+		constexpr bool can_fit_value() const noexcept
+		{
+			return is_integer() || has_integral_value();
+		}
+		template<std::same_as<typename Number::real_t> T>
+		constexpr bool can_fit_value() const noexcept
+		{
+			return true;
+		}
+		template<typename T>
+		constexpr std::enable_if_t<(!std::floating_point<T> && !std::integral<T>), bool> can_fit_value() const noexcept
+		{
+			return false;
+		}
+	#pragma endregion can_fit_value
+
+	private:
+		// Internal cast to. 
+		template<typename T>
+		constexpr T cast_to_() const
+		{
+			return std::visit([](auto const& value) { return static_cast<T>(value); }, value);
+		}
+	public:
+
+		/**
+		 * @brief		Casts the number's value to the specified type, T.
+		 * @tparam T  -	The type to cast the value to.
+		 * @returns		The number's value static_cast-ed to type T.
+		 * @exception	Throws ex::except when NUMBER_THROW_ON_UNSAFE_CAST is
+		 *				 true and casting to type T would lose precision.
+		 */
+		template<typename T>
+		constexpr T cast_to() const
+		{
+			if (NUMBER_THROW_ON_UNSAFE_CAST && !this->can_fit_value<T>()) {
+				throw precision_exception{ str::stringify(
+					"Cannot convert from \"",
+					std::visit([](auto&& value) -> std::string { {
+							using T = std::decay_t<decltype(value)>;
+							if constexpr (std::same_as<T, typename Number::int_t>)
+								return "cpp_int"; //< cpp_int
+							else
+								return "cpp_float"; //< cpp_dec_float_100
+						} }, value),
+					"\" to type \"",
+					std::visit([&]() -> std::string { {
+							using U = std::decay_t<T>;
+							if constexpr (std::same_as<U, typename Number::int_t>)
+								return "cpp_int"; //< cpp_int
+							else if constexpr (std::same_as<U, typename Number::real_t>)
+								return "cpp_float"; //< cpp_dec_float_100
+							else
+								return typeid(U).name(); //< other
+						} }),
+					"\" because the conversion would lose precision!"
+				), SuggestedFix::SmallerNumbers };
+			}
+			return cast_to_<T>();
+		}
+
+		std::string str() const
+		{
+			return str::stringify(*this);
+		}
+
+	#pragma endregion Methods
+
+	#pragma region Operators
+
 		/// @brief	Addition operator
 		friend WINCONSTEXPR Number operator+(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) + static_cast<long double>(r) }; }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { {
+					if constexpr (std::same_as<std::decay_t<decltype(l)>, std::decay_t<decltype(r)>>)
+						return Number{ l + r };
+					else return Number{ static_cast<typename Number::real_t>(l) + static_cast<typename Number::real_t>(r) };
+				} }, l.value, r.value);
 		}
-		friend WINCONSTEXPR Number& operator+=(Number& l, Number const& r)
+		friend WINCONSTEXPR Number operator+=(Number& l, const Number& r)
 		{
 			return l = l + r;
 		}
 		/// @brief	Subtraction operator
 		friend WINCONSTEXPR Number operator-(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) - static_cast<long double>(r) }; }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { {
+					if constexpr (std::same_as<std::decay_t<decltype(l)>, std::decay_t<decltype(r)>>)
+						return Number{ l - r };
+					else return Number{ static_cast<typename Number::real_t>(l) - static_cast<typename Number::real_t>(r) };
+				} }, l.value, r.value);
 		}
 		friend WINCONSTEXPR Number& operator-=(Number& l, Number const& r)
 		{
@@ -104,7 +232,11 @@ namespace calc {
 		/// @brief	Multiplication operator
 		friend WINCONSTEXPR Number operator*(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) * static_cast<long double>(r) }; }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { {
+					if constexpr (std::same_as<std::decay_t<decltype(l)>, std::decay_t<decltype(r)>>)
+						return Number{ l * r };
+					else return Number{ static_cast<typename Number::real_t>(l) * static_cast<typename Number::real_t>(r) };
+				} }, l.value, r.value);
 		}
 		friend WINCONSTEXPR Number& operator*=(Number& l, Number const& r)
 		{
@@ -113,7 +245,11 @@ namespace calc {
 		/// @brief	Division operator
 		friend WINCONSTEXPR Number operator/(const Number& l, const Number& r)
 		{
-			return std::visit([](auto&& l, auto&& r) { return Number{ static_cast<long double>(l) / static_cast<long double>(r) }; }, l.value, r.value);
+			return std::visit([](auto&& l, auto&& r) { {
+					if constexpr (std::same_as<std::decay_t<decltype(l)>, std::decay_t<decltype(r)>>)
+						return Number{ l / r };
+					else return Number{ static_cast<typename Number::real_t>(l) / static_cast<typename Number::real_t>(r) };
+				} }, l.value, r.value);
 		}
 		friend WINCONSTEXPR Number& operator/=(Number& l, Number const& r)
 		{
@@ -312,39 +448,27 @@ namespace calc {
 				} }, a.value, b.value);
 		}
 
-		template<typename T>
-		constexpr T cast_to() const noexcept
+		friend std::istream& operator>>(std::istream& is, Number& n)
 		{
-			return std::visit([](auto const& value) { return static_cast<T>(value); }, value);
+			std::string s;
+			is >> s;
+			if (s.find('.') != std::string::npos)
+				n.value = int_t{ s };
+			else n.value = real_t{ s };
+			return is;
 		}
-
-		template<std::integral T>
-		constexpr bool can_fit_value() const noexcept
-		{
-			if (!has_integral_value()) return false;
-			const int_t v{ std::get<int_t>(value) };
-			return v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max();
-		}
-		template<std::floating_point T>
-		constexpr bool can_fit_value() const noexcept
-		{
-			const real_t v{ std::get<real_t>(value) };
-			return v >= std::numeric_limits<T>::min() && v <= std::numeric_limits<T>::max();
-		}
-
 		friend std::ostream& operator<<(std::ostream& os, const Number& n)
 		{
 			std::visit([&](auto&& value) { os << $fwd(value); }, n.value);
 			return os;
 		}
 
-		std::string str() const
-		{
-			return str::stringify(*this);
-		}
+	#pragma endregion Operators
 	};
 
-	// Trigonometric Functions
+#pragma endregion Number
+
+#pragma region Trigonometric Functions
 
 	/// @brief	Compute cosine
 	WINCONSTEXPR Number cos(Number const& x)
@@ -382,7 +506,9 @@ namespace calc {
 		return Number{ boost::multiprecision::atan2(y.cast_to<Number::real_t>(), x.cast_to<Number::real_t>()) };
 	}
 
-	// Hyperbolic Functions
+#pragma endregion Trigonometric Functions
+
+#pragma region Hyperbolic Functions
 
 	/// @brief	Compute hyperbolic cosine
 	WINCONSTEXPR Number cosh(Number const& x)
@@ -415,7 +541,9 @@ namespace calc {
 		return Number{ boost::multiprecision::atanh(x.cast_to<Number::real_t>()) };
 	}
 
-	// Exponential and Logarithmic Functions
+#pragma endregion Hyperbolic Functions
+
+#pragma region Exponential and Logarithmic Functions
 
 	/// @brief	Compute exponential function
 	WINCONSTEXPR Number exp(Number const& x)
@@ -483,7 +611,9 @@ namespace calc {
 		return Number{ boost::multiprecision::scalbln(x.cast_to<Number::real_t>(), y.cast_to<int64_t>()) };
 	}
 
-	// Power Functions
+#pragma endregion Exponential and Logarithmic Functions
+
+#pragma region Power Functions
 
 	/// @brief	Raise to power
 	WINCONSTEXPR Number pow(Number const& base, Number const& exp)
@@ -515,7 +645,9 @@ namespace calc {
 		return boost::multiprecision::hypot(x.cast_to<Number::real_t>(), y.cast_to<Number::real_t>());
 	}
 
-	// Error & Gamma Functions
+#pragma endregion Power Functions
+
+#pragma region Error & Gamma Functions
 
 	/// @brief	Compute error function
 	WINCONSTEXPR Number erf(Number const& n)
@@ -538,7 +670,9 @@ namespace calc {
 		return Number{ boost::multiprecision::lgamma(n.cast_to<Number::real_t>()) };
 	}
 
-	// Rounding & Remainder Functions
+#pragma endregion Error & Gamma Functions
+
+#pragma region Rounding & Remainder Functions
 
 	/// @brief	Round up value
 	WINCONSTEXPR Number ceil(Number const& n)
@@ -576,7 +710,9 @@ namespace calc {
 		return numer % denom;
 	}
 
-	// Floating-point Manipulation Functions
+#pragma endregion Rounding & Remainder Functions
+
+#pragma region Floating-point Manipulation Functions
 
 	/// @brief	Copy sign
 	WINCONSTEXPR Number copysign(Number const& number, Number const& sign)
@@ -596,7 +732,9 @@ namespace calc {
 		return Number{ boost::multiprecision::nexttoward(a.cast_to<Number::real_t>(), b.cast_to<Number::real_t>()) };
 	}
 
-	// Minimum, Maximum, & Difference Functions
+#pragma endregion Floating-point Manipulation Functions
+
+#pragma region Minimum, Maximum, & Difference Functions
 
 	/// @brief	Positive difference
 	WINCONSTEXPR Number fdim(Number const& a, Number const& b)
@@ -618,7 +756,9 @@ namespace calc {
 		else return Number{ boost::multiprecision::fmin(a.cast_to<Number::real_t>(), b.cast_to<Number::real_t>()) };
 	}
 
-	// Other
+#pragma endregion Minimum, Maximum, & Difference Functions
+
+#pragma region Other
 
 	/// @brief	Get Absolute Value
 	WINCONSTEXPR Number abs(Number const& n)
@@ -632,4 +772,6 @@ namespace calc {
 	{
 		return Number{ boost::multiprecision::fma(x.cast_to<Number::real_t>(), y.cast_to<Number::real_t>(), z.cast_to<Number::real_t>()) };
 	}
+
+#pragma endregion Other
 }
