@@ -172,8 +172,8 @@ namespace calc {
 				throw precision_exception{ str::stringify(
 					"Cannot convert from \"",
 					std::visit([](auto&& value) -> std::string { {
-							using T = std::decay_t<decltype(value)>;
-							if constexpr (std::same_as<T, typename Number::int_t>)
+							using U = std::decay_t<decltype(value)>;
+							if constexpr (std::same_as<U, typename Number::int_t>)
 								return "cpp_int"; //< cpp_int
 							else
 								return "cpp_float"; //< cpp_dec_float_100
